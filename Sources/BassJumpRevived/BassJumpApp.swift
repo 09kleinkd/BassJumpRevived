@@ -93,14 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func showSettings() {
         popover.performClose(nil)
         if settingsWindow == nil {
-            let host = NSHostingController(rootView: SettingsView()
-                .environmentObject(controller).environmentObject(updater))
-            let window = NSWindow(contentViewController: host)
-            window.title = "BassJump Settings"
-            window.styleMask = [.titled, .closable]
-            window.isReleasedWhenClosed = false
-            window.center()
-            settingsWindow = window
+            settingsWindow = SettingsWindow.make(controller: controller, updater: updater)
         }
         NSApp.activate()
         settingsWindow?.makeKeyAndOrderFront(nil)

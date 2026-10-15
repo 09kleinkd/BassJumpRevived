@@ -1,23 +1,71 @@
 import SwiftUI
 
 /// The Settings window: everything you set once and forget. Everyday sound controls stay in
-/// the menu bar popover.
-struct SettingsView: View {
-    enum Tab: String { case general, sound, apps, help }
+/// the menu bar popover. Built as a classic toolbar-tab preferences window (NSTabViewController),
+/// which resizes to each tab and shows the tab name as the window title.
+enum SettingsWindow {
+    @MainActor
+    static func make(controller: BassJumpController, updater: Updater) -> NSWindow {
+        let tabs = SettingsTabsController()
+        tabs.tabStyle = .toolbar
+        tabs.canPropagateSelectedChildViewControllerTitle = true
 
-    @EnvironmentObject var c: BassJumpController
-    @EnvironmentObject var updater: Updater
-    @AppStorage("settingsTab") private var tab: Tab = .general
-
-    var body: some View {
-        TabView(selection: $tab) {
-            GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }.tag(Tab.general)
-            SoundSettings().tabItem { Label("Speakers", systemImage: "hifispeaker.2") }.tag(Tab.sound)
-            AppsSettings().tabItem { Label("Apps", systemImage: "app.badge") }.tag(Tab.apps)
-            HelpSettings().tabItem { Label("Help", systemImage: "questionmark.circle") }.tag(Tab.help)
+        func add<V: View>(_ view: V, _ label: String, _ symbol: String, height: CGFloat) {
+            let root = view
+                .environmentObject(controller).environmentObject(updater)
+                .frame(width: 500, height: height)
+            let host = NSHostingController(rootView: root)
+            host.sizingOptions = []
+            host.preferredContentSize = NSSize(width: 500, height: height)
+            host.title = label
+            let item = NSTabViewItem(viewController: host)
+            item.label = label
+            item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
+            tabs.addTabViewItem(item)
         }
-        .frame(width: 500, height: 470)
+        add(GeneralSettings(), "General", "gearshape", height: 470)
+        add(SoundSettings(), "Speakers", "hifispeaker.2", height: 345)
+        add(AppsSettings(), "Apps", "app.badge", height: 290)
+        add(HelpSettings(), "Help", "questionmark.circle", height: 400)
+
+        // `--settings-tab N` opens a given tab (for screenshots/testing).
+        let args = CommandLine.arguments
+        if let i = args.firstIndex(of: "--settings-tab"), i + 1 < args.count, let n = Int(args[i + 1]), n < tabs.tabViewItems.count {
+            tabs.selectedTabViewItemIndex = n
+        }
+        let window = NSWindow(contentViewController: tabs)
+        window.styleMask = [.titled, .closable]
+        window.toolbarStyle = .preference
+        window.isReleasedWhenClosed = false
+        tabs.fitWindow(animated: false)
+        window.center()
+        return window
     }
+}
+
+/// Resizes the window to each tab's height, keeping the top edge fixed (like System Settings).
+final class SettingsTabsController: NSTabViewController {
+    override func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
+        super.tabView(tabView, didSelect: tabViewItem)
+        fitWindow(animated: true)
+    }
+
+    func fitWindow(animated: Bool) {
+        guard let vc = tabViewItems[safe: selectedTabViewItemIndex]?.viewController else { return }
+        let size = vc.preferredContentSize
+        guard size.height > 0 else { return }
+        if let window = view.window {
+            let content = window.contentRect(forFrameRect: window.frame)
+            let newContent = NSRect(x: content.minX, y: content.maxY - size.height, width: size.width, height: size.height)
+            window.setFrame(window.frameRect(forContentRect: newContent), display: true, animate: animated)
+        } else {
+            view.setFrameSize(size)
+        }
+    }
+}
+
+private extension Array {
+    subscript(safe i: Int) -> Element? { indices.contains(i) ? self[i] : nil }
 }
 
 // MARK: General

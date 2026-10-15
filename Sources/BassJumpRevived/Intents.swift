@@ -76,6 +76,23 @@ struct SetBassJumpLevelIntent: AppIntent {
     }
 }
 
+struct SetBassJumpNightModeIntent: AppIntent {
+    static let title: LocalizedStringResource = "Set BassJump Night Mode"
+    static let description = IntentDescription("Turns night mode (quieter bass, peaks held down) on or off.")
+
+    @Parameter(title: "On") var on: Bool
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Turn BassJump night mode \(\.$on)")
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        BassJumpController.shared?.nightMode = on
+        return .result()
+    }
+}
+
 struct BassJumpShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(intent: ToggleBassJumpIntent(),
@@ -84,5 +101,8 @@ struct BassJumpShortcuts: AppShortcutsProvider {
         AppShortcut(intent: SetBassJumpPresetIntent(),
                     phrases: ["Set \(.applicationName) preset", "Change \(.applicationName) preset"],
                     shortTitle: "Set Preset", systemImageName: "slider.horizontal.3")
+        AppShortcut(intent: SetBassJumpNightModeIntent(),
+                    phrases: ["Set \(.applicationName) night mode", "\(.applicationName) night mode"],
+                    shortTitle: "Night Mode", systemImageName: "moon")
     }
 }

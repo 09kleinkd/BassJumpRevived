@@ -41,6 +41,8 @@ final class BassJumpController: ObservableObject {
     @Published var stereoSubs: Bool { didSet { saveGlobal(); reconcile() } }
     @Published var notifyOnConnect: Bool { didSet { saveGlobal() } }
     @Published var liveIcon: Bool { didSet { saveGlobal() } }
+    /// Quieter bass with peaks held well down, for late at night.
+    @Published var nightMode: Bool { didSet { saveGlobal(); applyParameters(); ControlBridge.stateChanged() } }
 
     // MARK: Per-output settings (remembered for each speaker/output device)
     @Published var crossover: Double { didSet { profileChanged(applyOnly: true); updatePresetName() } }
@@ -49,6 +51,11 @@ final class BassJumpController: ObservableObject {
     @Published var highPassMain: Bool { didSet { profileChanged(applyOnly: true) } }
     @Published var alignmentMs: Double { didSet { profileChanged(applyOnly: true) } }
     @Published var invertSub: Bool { didSet { profileChanged(applyOnly: true) } }
+    @Published var eqEnabled: Bool { didSet { profileChanged(applyOnly: true) } }
+    @Published var eq1Hz: Double { didSet { profileChanged(applyOnly: true) } }
+    @Published var eq1DB: Double { didSet { profileChanged(applyOnly: true) } }
+    @Published var eq2Hz: Double { didSet { profileChanged(applyOnly: true) } }
+    @Published var eq2DB: Double { didSet { profileChanged(applyOnly: true) } }
 
     // MARK: State
     @Published private(set) var status: Status = .off
@@ -57,6 +64,8 @@ final class BassJumpController: ObservableObject {
     @Published private(set) var outputDevices: [AudioDeviceInfo] = []
     @Published private(set) var profileOutputName: String?
     @Published private(set) var permissionProblem = false
+    /// True while the limiter is turning the bass down (shown next to the level meter).
+    @Published private(set) var limiting = false
     /// Apps currently using audio (for the "ignore an app" menu), excluding ourselves.
     @Published private(set) var audioApps: [AudioAppInfo] = []
     /// 0–3, drives the animated menu bar icon.
@@ -96,7 +105,7 @@ final class BassJumpController: ObservableObject {
         defaults.register(defaults: [
             "enabled": true, "followSystemVolume": true, "pauseForHeadphones": true,
             "subwooferUID": "", "hotKeyEnabled": true, "skipCalls": true, "loudness": false,
-            "stereoSubs": true, "notifyOnConnect": true, "liveIcon": true,
+            "stereoSubs": true, "notifyOnConnect": true, "liveIcon": true, "nightMode": false,
             "crossover": 150.0, "level": 0.6, "alignedMode": false, "highPassMain": false, "alignmentMs": 0.0,
         ])
         enabled = defaults.bool(forKey: "enabled")
@@ -110,6 +119,7 @@ final class BassJumpController: ObservableObject {
         stereoSubs = defaults.bool(forKey: "stereoSubs")
         notifyOnConnect = defaults.bool(forKey: "notifyOnConnect")
         liveIcon = defaults.bool(forKey: "liveIcon")
+        nightMode = defaults.bool(forKey: "nightMode")
         // Last-used sound settings seed any output that has no profile yet.
         crossover = defaults.double(forKey: "crossover")
         level = defaults.double(forKey: "level")
@@ -117,6 +127,7 @@ final class BassJumpController: ObservableObject {
         highPassMain = defaults.bool(forKey: "highPassMain")
         alignmentMs = defaults.double(forKey: "alignmentMs")
         invertSub = defaults.bool(forKey: "invertSub")
+        eqEnabled = true; eq1Hz = 60; eq1DB = 0; eq2Hz = 100; eq2DB = 0   // per-output only
         profiles = defaults.decoded([String: OutputProfile].self, forKey: "profiles") ?? [:]
         customPresets = defaults.decoded([BassPreset].self, forKey: "customPresets") ?? []
         updatePresetName()
@@ -176,6 +187,14 @@ final class BassJumpController: ObservableObject {
     private var lastRenderCount: UInt64 = 0
     private var maxPeak: Float = 0, maxInput: Float = 0
     private var silentWhileOthersPlay = 0
+    private var suspectApp = ""
+    private lazy var tapVerified = defaults.bool(forKey: "tapVerified")
+
+    /// An app (not us, not one we exclude from the tap) that currently has audio output running.
+    private func playingIncludedApp() -> String? {
+        AudioSystem.audioProcesses().first { $0.isPlaying && !isExcluded($0.bundleID) }
+            .map { $0.bundleID.isEmpty ? "pid \($0.pid)" : $0.bundleID }
+    }
 
     private func tick() {
         let running = engine.isRunning
@@ -187,6 +206,8 @@ final class BassJumpController: ObservableObject {
             let peak = running ? engine.dsp.peak : 0
             let bucket = !liveIcon || peak < 0.02 ? 0 : (peak < 0.15 ? 1 : (peak < 0.4 ? 2 : 3))
             if bucket != iconLevel { iconLevel = bucket }
+            let isLimiting = running && engine.dsp.limiterGainNow < 0.8   // > ~2 dB of limiting
+            if isLimiting != limiting { limiting = isLimiting }
         }
 
         if ticks % 40 == 0 {   // every 2 s
@@ -200,16 +221,25 @@ final class BassJumpController: ObservableObject {
             }
             lastRenderCount = count
 
-            // Permission check: another app is playing, yet the tap delivers digital silence.
-            if running && engine.dsp.inputPeak == 0 && AudioSystem.otherProcessIsPlaying() {
+            // Permission check: an app we're *not* excluding is playing, yet the tap delivers
+            // digital silence. Apps often keep a silent output stream open (paused players,
+            // browsers), so once the tap has ever delivered sound with this build's permission,
+            // require a full minute of silence instead of 10 s before warning.
+            if running && engine.dsp.inputPeak == 0, let app = playingIncludedApp() {
                 silentWhileOthersPlay += 1
+                suspectApp = app
             } else if engine.dsp.inputPeak > 0 {
                 silentWhileOthersPlay = 0
+                if !tapVerified { tapVerified = true; defaults.set(true, forKey: "tapVerified") }
             }
-            let problem = silentWhileOthersPlay >= 5   // ~10 s
+            let problem = silentWhileOthersPlay >= (tapVerified ? 30 : 5)
             if problem != permissionProblem {
                 permissionProblem = problem
-                if problem { log.error("Tap is silent while other apps play — system audio permission is probably off") }
+                if problem { log.error("Tap is silent while \(self.suspectApp, privacy: .public) plays — system audio permission is probably off") }
+            }
+            if running && debugLogging {
+                let g = engine.dsp.limiterGainNow
+                if g < 0.99 { log.notice("Limiter: \(20 * log10(g), privacy: .public) dB") }
             }
         }
         if ticks % 100 == 0 {
@@ -264,7 +294,8 @@ final class BassJumpController: ObservableObject {
 
     private var currentProfile: OutputProfile {
         OutputProfile(aligned: alignedMode, crossover: crossover, level: level,
-                      highPassMain: highPassMain, alignmentMs: alignmentMs, invertSub: invertSub)
+                      highPassMain: highPassMain, alignmentMs: alignmentMs, invertSub: invertSub,
+                      eqEnabled: eqEnabled, eq1Hz: eq1Hz, eq1DB: eq1DB, eq2Hz: eq2Hz, eq2DB: eq2DB)
     }
 
     private func profileChanged(applyOnly: Bool) {
@@ -286,12 +317,25 @@ final class BassJumpController: ObservableObject {
         guard let output, output.uid != profileUID else { return }
         profileUID = output.uid
         profileOutputName = output.name
-        let p = profiles[output.uid] ?? currentProfile
+        let p: OutputProfile
+        if let saved = profiles[output.uid] {
+            p = saved
+        } else {
+            // New output: keep the last-used level/crossover/phase, but pick the mode that suits
+            // this kind of speaker, and start with a flat EQ (EQ cuts are room/speaker-specific).
+            var fresh = currentProfile
+            fresh.aligned = OutputProfile.suggestsAlignedMode(for: output)
+            fresh.highPassMain = false; fresh.alignmentMs = 0
+            fresh.eq1DB = 0; fresh.eq2DB = 0
+            p = fresh
+            log.info("New output \(output.name, privacy: .public): \(fresh.aligned ? "time-aligned" : "sub-only", privacy: .public) mode")
+        }
         profiles[output.uid] = p
         defaults.encode(profiles, forKey: "profiles")
         loadingProfile = true
         crossover = p.crossover; level = p.level; alignedMode = p.aligned
         highPassMain = p.highPassMain; alignmentMs = p.alignmentMs; invertSub = p.invertSub
+        eqEnabled = p.eqEnabled; eq1Hz = p.eq1Hz; eq1DB = p.eq1DB; eq2Hz = p.eq2Hz; eq2DB = p.eq2DB
         loadingProfile = false
         updatePresetName()
         log.info("Using settings for \(output.name, privacy: .public)")
@@ -413,18 +457,27 @@ final class BassJumpController: ObservableObject {
         applyParameters()
     }
 
-    func applyCalibration(crossover: Double, level: Double, invert: Bool) {
+    func applyCalibration(crossover: Double, level: Double, invert: Bool, eqCut: (hz: Double, db: Double)) {
         self.crossover = crossover
         self.level = level
         self.invertSub = invert
-        log.info("Applied calibration: \(crossover) Hz, level \(level), invert \(invert)")
+        // Band 1 is the room band: calibration sets it (or flattens it if no boom was found).
+        eq1Hz = eqCut.hz; eq1DB = eqCut.db
+        if eqCut.db != 0 { eqEnabled = true }
+        log.info("Applied calibration: \(crossover) Hz, level \(level), invert \(invert), EQ \(eqCut.db) dB @ \(eqCut.hz) Hz")
     }
 
+
     private func applyParameters() {
+        let dsp = engine.dsp
+        let eqOn = eqEnabled && calibrationOverride == nil   // calibration measures with EQ off
+        dsp.eq1Hz = eq1Hz; dsp.eq1DB = eqOn ? eq1DB : 0
+        dsp.eq2Hz = eq2Hz; dsp.eq2DB = eqOn ? eq2DB : 0
         if let o = calibrationOverride {
-            engine.dsp.subGain = o.gain
-            engine.dsp.invertSub = o.invert
-            if let x = o.crossover { engine.dsp.crossoverHz = x }
+            dsp.subGain = o.gain
+            dsp.invertSub = o.invert
+            dsp.limiterThreshold = 0.89; dsp.limiterReleaseMs = 150
+            if let x = o.crossover { dsp.crossoverHz = x }
             return
         }
         var gain = Float(level) * 2.0          // level 1.0 = +6 dB into the limiter
@@ -434,10 +487,14 @@ final class BassJumpController: ObservableObject {
             else if let v = AudioSystem.volume(out) {
                 gain *= v
                 // Loudness: ears lose bass at low volume, so add up to +9 dB as volume falls.
-                if loudness { gain *= Float(pow(10, 9 * Double(1 - v) / 20)) }
+                if loudness && !nightMode { gain *= Float(pow(10, 9 * Double(1 - v) / 20)) }
             }
         }
-        let dsp = engine.dsp
+        // Night mode: −6 dB, and the limiter holds peaks ~10 dB lower with a slow, smooth release
+        // so explosions and drops don't boom through the house.
+        if nightMode { gain *= 0.5 }
+        dsp.limiterThreshold = nightMode ? 0.3 : 0.89
+        dsp.limiterReleaseMs = nightMode ? 400 : 150
         dsp.crossoverHz = crossover
         dsp.subGain = gain
         dsp.highPassMain = highPassMain
@@ -510,6 +567,7 @@ final class BassJumpController: ObservableObject {
         defaults.set(stereoSubs, forKey: "stereoSubs")
         defaults.set(notifyOnConnect, forKey: "notifyOnConnect")
         defaults.set(liveIcon, forKey: "liveIcon")
+        defaults.set(nightMode, forKey: "nightMode")
     }
 }
 

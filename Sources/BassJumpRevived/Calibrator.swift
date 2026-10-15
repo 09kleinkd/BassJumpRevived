@@ -10,6 +10,8 @@ private let log = Logger(subsystem: "local.bassjump.revived", category: "calibra
 /// 2. Noise with the sub on, normal and inverted polarity → keep whichever sums louder
 ///    around the crossover.
 /// 3. Solve for the sub gain that brings the bass bands up to the speakers' midrange level.
+/// 4. Predict the bass response at that gain; if one band booms well above the rest (a room
+///    mode), suggest a sub EQ cut there.
 ///
 /// Test noise is played by a separate `afplay` process, because BassJump's own audio is
 /// excluded from its tap.
@@ -21,7 +23,11 @@ final class Calibrator: ObservableObject {
         var invert: Bool
         var rolloff: Double
         var note: String?
+        /// Suggested sub EQ cut for a room boom, if any.
+        var eqCut: EQCut?
     }
+
+    struct EQCut: Equatable { var hz: Double; var db: Double }
 
     enum Phase: Equatable {
         case idle, ready
@@ -60,7 +66,8 @@ final class Calibrator: ObservableObject {
     }
 
     func apply(_ r: Result) {
-        controller?.applyCalibration(crossover: r.crossover, level: r.level, invert: r.invert)
+        controller?.applyCalibration(crossover: r.crossover, level: r.level, invert: r.invert,
+                                     eqCut: (r.eqCut?.hz ?? 60, r.eqCut?.db ?? 0))   // no boom → flat
         phase = .idle
     }
 
@@ -122,6 +129,24 @@ final class Calibrator: ObservableObject {
             } else {
                 gainFactor = sqrt(ratios.sorted()[ratios.count / 2])
             }
+            // 4. Room boom: predicted level of each bass band at the chosen gain.
+            var eqCut: EQCut?
+            if !ratios.isEmpty {
+                let g2 = gainFactor * gainFactor
+                var worst: (f: Double, excess: Double)?
+                for ((f, s), (_, t)) in zip(speakers, withSub) where f >= 40 && f <= min(crossover, 160) {
+                    let ps = pow(10, s / 10), added = max(0, pow(10, t / 10) - ps)
+                    let predicted = 10 * log10(ps + added * g2)
+                    let excess = predicted - mid
+                    if excess > (worst?.excess ?? 3) { worst = (f, excess) }
+                }
+                if let worst {
+                    let db = -min((worst.excess / 0.5).rounded() * 0.5, 10)
+                    eqCut = EQCut(hz: worst.f, db: db)
+                    log.info("Room boom at \(worst.f) Hz (+\(worst.excess) dB) → EQ \(db) dB")
+                }
+            }
+
             let effectiveGain = Double(refGain) * gainFactor
             // Convert to the "Bass level" setting: gain = level × 2 × volume (when following volume).
             let follow = controller.followSystemVolume
@@ -132,7 +157,8 @@ final class Calibrator: ObservableObject {
             controller.clearCalibrationOverride()
             cleanup()
             log.info("Calibration: crossover \(crossover) Hz, level \(level), invert \(invert)")
-            phase = .done(Result(crossover: crossover, level: level, invert: invert, rolloff: rolloff, note: note))
+            phase = .done(Result(crossover: crossover, level: level, invert: invert, rolloff: rolloff,
+                                 note: note, eqCut: eqCut))
         } catch is CancellationError {
             controller.clearCalibrationOverride()
             cleanup()

@@ -38,11 +38,24 @@ struct OutputProfile: Codable, Equatable {
     var highPassMain = false
     var alignmentMs = 0.0
     var invertSub = false
+    /// Sub EQ: two peaking bands; gain 0 dB = band off. Room-specific, so new outputs start flat.
+    var eqEnabled = true
+    var eq1Hz = 60.0, eq1DB = 0.0
+    var eq2Hz = 100.0, eq2DB = 0.0
 
     init(aligned: Bool = false, crossover: Double = 150, level: Double = 0.6,
-         highPassMain: Bool = false, alignmentMs: Double = 0, invertSub: Bool = false) {
+         highPassMain: Bool = false, alignmentMs: Double = 0, invertSub: Bool = false,
+         eqEnabled: Bool = true, eq1Hz: Double = 60, eq1DB: Double = 0, eq2Hz: Double = 100, eq2DB: Double = 0) {
         self.aligned = aligned; self.crossover = crossover; self.level = level
         self.highPassMain = highPassMain; self.alignmentMs = alignmentMs; self.invertSub = invertSub
+        self.eqEnabled = eqEnabled; self.eq1Hz = eq1Hz; self.eq1DB = eq1DB; self.eq2Hz = eq2Hz; self.eq2DB = eq2DB
+    }
+
+    /// Mode for an output BassJump hasn't seen before: time-aligned for a Mac's own stereo
+    /// speakers (keeps the sub in sync), sub-only for everything else — multichannel displays
+    /// like the Studio Display play ~10 dB quieter when driven directly.
+    static func suggestsAlignedMode(for output: AudioDeviceInfo) -> Bool {
+        output.isBuiltIn && output.outputChannels <= 2
     }
 
     /// Tolerates profiles saved by older versions (missing keys fall back to defaults).
@@ -54,6 +67,11 @@ struct OutputProfile: Codable, Equatable {
         highPassMain = try c.decodeIfPresent(Bool.self, forKey: .highPassMain) ?? false
         alignmentMs = try c.decodeIfPresent(Double.self, forKey: .alignmentMs) ?? 0
         invertSub = try c.decodeIfPresent(Bool.self, forKey: .invertSub) ?? false
+        eqEnabled = try c.decodeIfPresent(Bool.self, forKey: .eqEnabled) ?? true
+        eq1Hz = try c.decodeIfPresent(Double.self, forKey: .eq1Hz) ?? 60
+        eq1DB = try c.decodeIfPresent(Double.self, forKey: .eq1DB) ?? 0
+        eq2Hz = try c.decodeIfPresent(Double.self, forKey: .eq2Hz) ?? 100
+        eq2DB = try c.decodeIfPresent(Double.self, forKey: .eq2DB) ?? 0
     }
 }
 

@@ -9,6 +9,7 @@ struct MenuView: View {
     @ObservedObject var meter: MeterModel
     @State private var savingPreset = false
     @State private var newPresetName = ""
+    @State private var showEQ = false
 
     private var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
@@ -57,6 +58,14 @@ struct MenuView: View {
                     .help(c.enabled ? "Turn BassJump off" : "Turn BassJump on")
                 }
                 LevelMeter(level: meter.level, active: c.status.isPlaying)
+                    .overlay(alignment: .trailing) {
+                        if c.limiting {
+                            Text(c.nightMode ? "Night limit" : "Limiting")
+                                .font(.system(size: 9, weight: .semibold)).foregroundStyle(.orange)
+                                .offset(y: -9)
+                                .help("The limiter is holding the bass down to protect the BassJump")
+                        }
+                    }
             }
         }
     }
@@ -99,6 +108,12 @@ struct MenuView: View {
                         Text("Your speakers roll off around \(Int(r.rolloff)) Hz.").font(.caption)
                         Text("Crossover \(Int(r.crossover)) Hz · Bass level \(Int(r.level * 100))% · Phase \(r.invert ? "flipped" : "normal")")
                             .font(.caption.bold())
+                        if let cut = r.eqCut {
+                            Text("Your room booms around \(Int(cut.hz)) Hz — EQ cut \(eqDBText(cut.db)) there.")
+                                .font(.caption)
+                        } else {
+                            Text("No room boom found — EQ stays flat.").font(.caption).foregroundStyle(.secondary)
+                        }
                         if let note = r.note {
                             Text(note).font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                         }
@@ -156,6 +171,9 @@ struct MenuView: View {
                 ValueSlider(icon: "speaker.wave.3", title: "Bass level", value: $c.level,
                             range: 0...1.5, step: 0.05) { "\(Int($0 * 100))%" }
 
+                SwitchRow(icon: "moon", title: "Night mode", isOn: $c.nightMode)
+                    .help("Quieter bass with peaks held down, so explosions and drops don't shake the house")
+                eqSection
                 SwitchRow(icon: "ear", title: "Loudness (more bass when quiet)", isOn: $c.loudness)
                     .help("Adds up to +9 dB of bass as you turn the volume down, like the Loudness button on a stereo")
                 SwitchRow(icon: "arrow.left.arrow.right", title: "Flip sub phase", isOn: $c.invertSub)
@@ -163,7 +181,7 @@ struct MenuView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     SwitchRow(icon: "metronome", title: "Time-aligned mode", isOn: $c.alignedMode)
-                    Text("Plays your speakers through BassJump too, so both stay in sync. Best with MacBook speakers.")
+                    Text("Plays your speakers through BassJump too, so both stay in sync. Best with MacBook speakers (on by default there); keep it off for displays like the Studio Display.")
                         .font(.caption2).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.leading, 26)
@@ -175,6 +193,68 @@ struct MenuView: View {
                 }
             }
         }
+    }
+
+    // MARK: Sub EQ
+
+    private var eqSummary: String {
+        let bands = [(c.eq1Hz, c.eq1DB), (c.eq2Hz, c.eq2DB)].filter { $0.1 != 0 }
+        guard c.eqEnabled, !bands.isEmpty else { return "Flat" }
+        return bands.map { "\(eqDBText($0.1)) @ \(Int($0.0)) Hz" }.joined(separator: ", ")
+    }
+
+    private var eqSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button { withAnimation(.snappy) { showEQ.toggle() } } label: {
+                HStack(spacing: 8) {
+                    RowIcon(name: "slider.vertical.3")
+                    Text("Sub EQ")
+                    Spacer(minLength: 8)
+                    Text(eqSummary).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
+                        .rotationEffect(.degrees(showEQ ? 90 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if showEQ {
+                VStack(alignment: .leading, spacing: 10) {
+                    SwitchRow(icon: "power", title: "EQ on", isOn: $c.eqEnabled)
+                    Group {
+                        eqBand(title: "Room band", hz: $c.eq1Hz, db: $c.eq1DB)
+                        eqBand(title: "Band 2", hz: $c.eq2Hz, db: $c.eq2DB)
+                    }
+                    .disabled(!c.eqEnabled)
+                    Text("Cut where your room booms (Calibrate finds it for you). Bands at 0 dB are off.")
+                        .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.leading, 26)
+            }
+        }
+    }
+
+    private func eqBand(title: String, hz: Binding<Double>, db: Binding<Double>) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(title).font(.caption.weight(.medium))
+                Spacer()
+                Text("\(eqDBText(db.wrappedValue)) @ \(Int(hz.wrappedValue)) Hz")
+                    .font(.caption).monospacedDigit().foregroundStyle(.secondary)
+            }
+            HStack(spacing: 6) {
+                Image(systemName: "waveform").font(.caption2).foregroundStyle(.tertiary)
+                Slider(value: hz, in: 30...200, step: 1).controlSize(.mini)
+                    .help("Frequency")
+                Image(systemName: "plusminus").font(.caption2).foregroundStyle(.tertiary)
+                Slider(value: db, in: -12...6, step: 0.5).controlSize(.mini)
+                    .help("Boost or cut (dB)")
+            }
+        }
+    }
+
+    private func eqDBText(_ db: Double) -> String {
+        db == 0 ? "0 dB" : String(format: "%+.1f dB", db).replacingOccurrences(of: ".0 ", with: " ")
     }
 
     /// Custom presets live behind a "More" button: choose, save current, delete.

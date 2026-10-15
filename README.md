@@ -32,7 +32,16 @@ system audio recording when asked.
   normal speakers untouched, and a **private aggregate device** (BassJump + tap, with drift
   compensation) — the same job 3.0.1's virtual driver + player daemon did.
 - Each audio block: stereo → mono → 40 Hz high-pass (protects the small driver; 3.0.1 used a
-  band-pass) → 4th-order Linkwitz-Riley low-pass at the crossover → gain → soft limiter.
+  band-pass) → 4th-order Linkwitz-Riley low-pass at the crossover → sub EQ (two peaking
+  bands) → gain → look-ahead peak limiter (3 ms look-ahead, −1 dBFS ceiling: it turns the
+  bass down *before* a peak arrives, so loud passages compress cleanly instead of distorting).
+- **Sub EQ:** cut the frequency where your room booms (or boost a dip). Calibrate measures the
+  room and sets the first band for you. Saved per output.
+- **Night mode:** −6 dB of bass and a −10 dBFS limiter ceiling with a slow release, so
+  explosions and drops don't shake the house. Also a Shortcuts action.
+- **Mode by speaker type:** the first time BassJump sees an output it picks time-aligned mode
+  for a Mac's built-in stereo speakers and sub-only mode for everything else (displays,
+  USB/Thunderbolt speakers). Change it any time; the choice is remembered per output.
 - **Time-aligned mode** (optional): the tap mutes normal playback and the app plays *both* your
   speakers and the BassJump from one aggregate device (speakers as clock, BassJump
   drift-compensated), so they share a timeline. Optionally high-passes the speakers at the same
@@ -136,8 +145,8 @@ See [docs/TEARDOWN.md](docs/TEARDOWN.md) for how the original software worked.
   Spreading stereo across all channels (`defaults write local.bassjump.revived fillAllChannels
   -bool YES`) matches loudness but colours the sound by ±7 dB, so it's off by default. Use
   sub-only mode with the Studio Display; time-aligned mode is meant for MacBook speakers.
-- No graphic EQ (3.0.1 had a 10-band one). In sub-only mode the speakers bypass the app, so
-  an EQ could only shape the sub.
+- No graphic EQ for the speakers (3.0.1 had a 10-band one). In sub-only mode the speakers
+  bypass the app, so the EQ only shapes the sub.
 - The raw "BassJump Core" device still appears in Sound settings (3.0.1 hid it with a kext).
 
 ## License

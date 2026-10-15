@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: DSP tests + universal build
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Run DSP unit tests
+        run: swift test
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Build app (unsigned, arm64 + x86_64)
+        run: |
+          xcodegen generate
+          xcodebuild -project BassJump.xcodeproj -scheme BassJump -configuration Release \
+            -destination "generic/platform=macOS" ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
+            -derivedDataPath build/DD-ci CODE_SIGNING_ALLOWED=NO build
+          lipo -archs build/DD-ci/Build/Products/Release/BassJump.app/Contents/MacOS/BassJump

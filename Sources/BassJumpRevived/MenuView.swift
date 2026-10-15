@@ -5,6 +5,7 @@ import SwiftUI
 struct MenuView: View {
     @EnvironmentObject var c: BassJumpController
     @EnvironmentObject var cal: Calibrator
+    @EnvironmentObject var updater: Updater
     @ObservedObject var meter: MeterModel
     @State private var savingPreset = false
     @State private var newPresetName = ""
@@ -17,6 +18,7 @@ struct MenuView: View {
         GlassGroup {
             VStack(spacing: 10) {
                 statusCard
+                if updater.availableVersion != nil { updateCard }
                 if c.permissionProblem { permissionCard }
                 if cal.phase != .idle { calibrationCard }
                 soundCard
@@ -249,6 +251,24 @@ struct MenuView: View {
         }
     }
 
+    // MARK: Update
+
+    private var updateCard: some View {
+        GlassCard(tint: .blue) {
+            HStack(spacing: 10) {
+                RowIcon(name: "arrow.down.circle")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Update available").font(.callout.weight(.semibold))
+                    Text("BassJump Revived \(updater.availableVersion ?? "")")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                Button("Install…") { updater.checkForUpdates() }
+                    .glassCapsuleButton(prominent: true).controlSize(.small)
+            }
+        }
+    }
+
     // MARK: Options
 
     private var optionsCard: some View {
@@ -262,6 +282,8 @@ struct MenuView: View {
                 SwitchRow(icon: "power", title: "Launch at login", isOn: $c.launchAtLogin)
                 SwitchRow(icon: "bell", title: "Connect notifications", isOn: $c.notifyOnConnect)
                 SwitchRow(icon: "waveform", title: "Animated menu bar icon", isOn: $c.liveIcon)
+                SwitchRow(icon: "arrow.down.circle", title: "Check for updates automatically",
+                          isOn: $updater.automaticChecks)
                 SwitchRow(icon: "hifispeaker.2", title: c.stereoActive ? "Stereo with two BassJumps (active)" : "Stereo with two BassJumps",
                           isOn: $c.stereoSubs)
                     .help("With two BassJumps plugged in, left bass goes to one and right to the other")
@@ -284,6 +306,9 @@ struct MenuView: View {
         HStack {
             Text("BassJump Revived \(version)").font(.caption2).foregroundStyle(.tertiary)
             Spacer()
+            Button("Updates…") { updater.checkForUpdates() }
+                .glassCapsuleButton().controlSize(.small)
+                .disabled(!updater.canCheck).help("Check for updates")
             Button("Quit") { NSApplication.shared.terminate(nil) }
                 .glassCapsuleButton().controlSize(.small)
         }

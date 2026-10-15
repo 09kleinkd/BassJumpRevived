@@ -1,11 +1,20 @@
 # BassJump Revived
 
-A native Apple Silicon replacement for Twelve South's BassJump Sound System software
+[![CI](https://github.com/09kleinkd/BassJumpRevived/actions/workflows/ci.yml/badge.svg)](https://github.com/09kleinkd/BassJumpRevived/actions/workflows/ci.yml)
+
+A native replacement for Twelve South's BassJump Sound System software
 (last release 3.0.1, 2015, Intel-only). No driver, no kernel extension.
 
 ## For other BassJump owners
 **[⬇︎ Download the latest release](https://github.com/09kleinkd/BassJumpRevived/releases/latest)**
-(notarized by Apple; macOS 14.2+, Apple Silicon).
+(notarized by Apple; macOS 14.2+, Apple Silicon and Intel).
+
+Or with [Homebrew](https://brew.sh):
+```sh
+brew install --cask 09kleinkd/tap/bassjump-revived
+```
+From 5.1 on, the app keeps itself up to date (**Updates…** in the menu, or automatic checks
+once a day — you can turn those off in Options).
 
 If your BassJump stopped working after macOS Catalina or on an Apple Silicon Mac, this app
 replaces Twelve South's discontinued software. You don't need to install the old software,
@@ -80,12 +89,26 @@ Because the app is ad-hoc signed, rebuilding may re-trigger that prompt.
 `scripts/release.sh` builds with the hardened runtime, signs with the team's
 **Developer ID Application** certificate, notarizes with Apple and staples the ticket. The
 script's header lists the one-time setup (certificate + `notarytool` keychain profile).
+Builds are universal (arm64 + x86_64).
+
+**Auto-updates (Sparkle):** the release script also signs the zip with the EdDSA key stored in
+the login keychain (account `BassJumpRevived`; public key in `Info.plist` → `SUPublicEDKey`) and
+adds the release to `appcast.xml`. To publish:
+1. Bump `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` in `project.yml` and `Info.plist`.
+2. `scripts/release.sh`
+3. Create GitHub release `v<version>` with `build/BassJump-<version>.zip` attached.
+4. Commit and push `appcast.xml` — installed copies pick the update up from there.
+5. Update the version and `sha256` in the Homebrew tap's `Casks/bassjump-revived.rb`.
+
+Back up the Sparkle private key (`generate_keys --account BassJumpRevived -x key.txt`) somewhere
+safe; without it, existing installs can't verify future updates.
 
 ## Tests
 ```
 swift test
 ```
 (The Swift package is kept for tests; the app itself builds from the Xcode project.)
+GitHub Actions runs the tests and an unsigned universal build on every push.
 Checks the crossover math: LR4 −6 dB at the crossover, flat passband, 24 dB/oct roll-off,
 low + high summing flat, exact delay-line timing, and the limiter never exceeding full scale.
 

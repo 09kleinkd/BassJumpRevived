@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds BassJump.app (Apple Silicon) with Xcode into ./build.
+# Builds BassJump.app (universal: Apple Silicon + Intel) with Xcode into ./build.
 #   ./build.sh            build only
 #   ./build.sh --install  build, copy to /Applications, and relaunch
 # Requires Xcode and XcodeGen (brew install xcodegen). Override signing with SIGN_IDENTITY=...
@@ -17,11 +17,12 @@ IDENTITY="${IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null \
   | grep 'Apple Development' | grep -v REVOKED | grep 'ZSV7558J3F' | head -1 | awk '{print $2}')}"
 [ -n "$IDENTITY" ] || { echo "No Apple Development signing identity found"; exit 1; }
 
-xcodebuild -project BassJump.xcodeproj -scheme BassJump -configuration Release \
+xcodebuild -project BassJump.xcodeproj -scheme BassJump -configuration Release -destination "generic/platform=macOS" ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
   -derivedDataPath build/DD CODE_SIGN_IDENTITY="$IDENTITY" ENABLE_HARDENED_RUNTIME=YES \
   CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO -quiet build
 rm -rf build/BassJump.app
 cp -R build/DD/Build/Products/Release/BassJump.app build/BassJump.app
+scripts/sign-sparkle.sh build/BassJump.app "$IDENTITY"
 echo "Built build/BassJump.app (signed: $IDENTITY)"
 
 if [[ "${1:-}" == "--install" ]]; then

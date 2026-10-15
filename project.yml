@@ -4,14 +4,18 @@ options:
   deploymentTarget:
     macOS: "14.2"
   createIntermediateGroups: true
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.0"
 settings:
   base:
     DEVELOPMENT_TEAM: BWZWZZ6FB7          # KSQ Studios LLC
     CODE_SIGN_STYLE: Manual
     CODE_SIGN_IDENTITY: "Apple Development"
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "5.0.1"
-    CURRENT_PROJECT_VERSION: "6"
+    MARKETING_VERSION: "5.1"
+    CURRENT_PROJECT_VERSION: "7"
     ENABLE_HARDENED_RUNTIME: NO
 targets:
   BassJump:
@@ -28,6 +32,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Resources/BassJump-Release.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     dependencies:
+      - package: Sparkle
       - target: BassJumpControls
         embed: true
         codeSign: true

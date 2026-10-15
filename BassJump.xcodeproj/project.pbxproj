@@ -14,12 +14,14 @@
 		54517D4F2A458542A9834C31 /* Intents.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC511956A62786747943706E /* Intents.swift */; };
 		648241A31F6E16CB645C2DC7 /* Calibrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB91CA256AC5107556FCAF5C /* Calibrator.swift */; };
 		6BAAE22EF4A524166D5938D1 /* BassJumpControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = F43C21455838A403E1BC8D9C /* BassJumpControls.swift */; };
+		7094D95BB577DBCCAE47F4F0 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 490BC1BE5B38A410B4A93F79 /* Sparkle */; };
 		90E1F02BBABD15D8AD8973D3 /* BassJumpControls.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1933B10ECFF98009234F3C0E /* BassJumpControls.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		97D9C7FEB9887D4D1EFB9873 /* HotKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54E12816C322C4708D9A83A0 /* HotKey.swift */; };
 		A4C192AD88FFE383F4FC7EB9 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 0B5F64C51A92DEF43CA23330 /* AppIcon.icon */; };
 		AC562CA5712E79A3A735A6CE /* BassEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2EB84D02775FE482FEEF164 /* BassEngine.swift */; };
 		CD6058BA343642A490C32474 /* BassDSP.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC6F3D0914FCBE15558D62A4 /* BassDSP.swift */; };
 		E9B9D55D9C77AB3B2A172E96 /* ControlBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4AA7AE87EBCFB2FE69E1985 /* ControlBridge.swift */; };
+		ED45B17BE12EBEE6BF8C5BB1 /* Updater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 406A57BC69894DC5C16C009F /* Updater.swift */; };
 		F056FBECC6A5E283B7131BDC /* MenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F2590651B9DD096D290A582 /* MenuView.swift */; };
 /* End PBXBuildFile section */
 
@@ -52,6 +54,7 @@
 		1933B10ECFF98009234F3C0E /* BassJumpControls.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BassJumpControls.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		3806399BA494F7C2F1B4822C /* BassJumpController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BassJumpController.swift; sourceTree = "<group>"; };
 		3C44E0864B11B1A46042910E /* Presets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Presets.swift; sourceTree = "<group>"; };
+		406A57BC69894DC5C16C009F /* Updater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Updater.swift; sourceTree = "<group>"; };
 		46683642DD4E305AB332E5F5 /* BassJumpApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BassJumpApp.swift; sourceTree = "<group>"; };
 		54E12816C322C4708D9A83A0 /* HotKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKey.swift; sourceTree = "<group>"; };
 		5565ADB1E3D63A80A1447CEB /* CoreAudioHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreAudioHelpers.swift; sourceTree = "<group>"; };
@@ -64,6 +67,17 @@
 		F43C21455838A403E1BC8D9C /* BassJumpControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BassJumpControls.swift; sourceTree = "<group>"; };
 		FC6F3D0914FCBE15558D62A4 /* BassDSP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BassDSP.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		97643FBC52212A242EE37277 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7094D95BB577DBCCAE47F4F0 /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		0611FA0E255C3757F11FDD6F /* BassJumpRevived */ = {
@@ -80,6 +94,7 @@
 				EC511956A62786747943706E /* Intents.swift */,
 				7F2590651B9DD096D290A582 /* MenuView.swift */,
 				3C44E0864B11B1A46042910E /* Presets.swift */,
+				406A57BC69894DC5C16C009F /* Updater.swift */,
 			);
 			path = BassJumpRevived;
 			sourceTree = "<group>";
@@ -144,6 +159,7 @@
 			buildPhases = (
 				3CAF34C1C0F3DF4D794396A5 /* Sources */,
 				366D00831E6C8DB8DB2785B2 /* Resources */,
+				97643FBC52212A242EE37277 /* Frameworks */,
 				432FEF4755A9E42F2961A919 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
@@ -153,6 +169,7 @@
 			);
 			name = BassJump;
 			packageProductDependencies = (
+				490BC1BE5B38A410B4A93F79 /* Sparkle */,
 			);
 			productName = BassJump;
 			productReference = A0ACA1F4D58507A02AF6C268 /* BassJump.app */;
@@ -203,6 +220,9 @@
 			);
 			mainGroup = A98450DADDC98DB59E4B3AE9;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				6620A6278ADAAFA5AD86B2C4 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D0C354E884B99F596EDC8997 /* Products */;
 			projectDirPath = "";
@@ -241,6 +261,7 @@
 				54517D4F2A458542A9834C31 /* Intents.swift in Sources */,
 				F056FBECC6A5E283B7131BDC /* MenuView.swift in Sources */,
 				3A29C307EC5EF072E25704E7 /* Presets.swift in Sources */,
+				ED45B17BE12EBEE6BF8C5BB1 /* Updater.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -316,7 +337,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = BWZWZZ6FB7;
 				ENABLE_HARDENED_RUNTIME = NO;
@@ -337,7 +358,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.2;
-				MARKETING_VERSION = 5.0.1;
+				MARKETING_VERSION = 5.1;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -385,7 +406,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = BWZWZZ6FB7;
 				ENABLE_HARDENED_RUNTIME = NO;
@@ -400,7 +421,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.2;
-				MARKETING_VERSION = 5.0.1;
+				MARKETING_VERSION = 5.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -497,6 +518,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		6620A6278ADAAFA5AD86B2C4 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.6.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		490BC1BE5B38A410B4A93F79 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6620A6278ADAAFA5AD86B2C4 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 32D9AF27C7D4907FD337903C /* Project object */;
 }

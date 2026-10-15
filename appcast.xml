@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>BassJump Revived</title>
+    <link>https://github.com/09kleinkd/BassJumpRevived</link>
+    <language>en</language>
+    <item>
+      <title>BassJump Revived 5.1</title>
+      <pubDate>Thu, 15 Oct 2026 14:43:46 -0400</pubDate>
+      <sparkle:version>7</sparkle:version>
+      <sparkle:shortVersionString>5.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
+      <sparkle:releaseNotesLink>https://github.com/09kleinkd/BassJumpRevived/releases/tag/v5.1</sparkle:releaseNotesLink>
+      <enclosure url="https://github.com/09kleinkd/BassJumpRevived/releases/download/v5.1/BassJump-5.1.zip" length="3544760" type="application/octet-stream" sparkle:edSignature="61XRkHkJ5Ny7SMBI4TO6ZBRmnQbmyPxhwqi8DZKXGtTBBVLN5FW+lQ//e83JSJhoGHVb70mscoD/3JbNQ6fdDw=="/>
+    </item>
+  </channel>
+</rss>

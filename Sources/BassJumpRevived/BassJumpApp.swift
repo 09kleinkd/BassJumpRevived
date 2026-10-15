@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let popover = NSPopover()
     private let controller = BassJumpController()
     private lazy var calibrator = Calibrator(controller: controller)
+    private let updater = Updater()
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -27,7 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.action = #selector(togglePopover(_:))
 
         let host = NSHostingController(rootView: MenuView(meter: controller.meterModel)
-            .environmentObject(controller).environmentObject(calibrator))
+            .environmentObject(controller).environmentObject(calibrator).environmentObject(updater))
         host.sizingOptions = [.preferredContentSize]
         popover.contentViewController = host
         popover.behavior = .transient

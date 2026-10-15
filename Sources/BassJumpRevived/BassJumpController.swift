@@ -82,7 +82,15 @@ final class BassJumpController: ObservableObject {
     }
 
     var allPresets: [BassPreset] { BassPreset.builtIn + customPresets }
-    var hotKeyDisplay: String { HotKey.defaultDisplay }
+    var hotKeyDisplay: String { shortcut.display }
+    /// The global shortcut (⌃⌥⌘B unless changed in Settings).
+    @Published var shortcut: Shortcut = .standard {
+        didSet { defaults.encode(shortcut, forKey: "shortcut"); updateHotKey() }
+    }
+    /// Registration failed — another app owns this combination.
+    @Published private(set) var hotKeyConflict = false
+    /// While recording a new shortcut, the old one must not fire.
+    var hotKeySuspended = false { didSet { updateHotKey() } }
 
     private let engine = BassEngine()
     private let defaults = UserDefaults.standard
@@ -120,6 +128,7 @@ final class BassJumpController: ObservableObject {
         notifyOnConnect = defaults.bool(forKey: "notifyOnConnect")
         liveIcon = defaults.bool(forKey: "liveIcon")
         nightMode = defaults.bool(forKey: "nightMode")
+        tapVerified = defaults.bool(forKey: "tapVerified")
         // Last-used sound settings seed any output that has no profile yet.
         crossover = defaults.double(forKey: "crossover")
         level = defaults.double(forKey: "level")
@@ -130,6 +139,7 @@ final class BassJumpController: ObservableObject {
         eqEnabled = true; eq1Hz = 60; eq1DB = 0; eq2Hz = 100; eq2DB = 0   // per-output only
         profiles = defaults.decoded([String: OutputProfile].self, forKey: "profiles") ?? [:]
         customPresets = defaults.decoded([BassPreset].self, forKey: "customPresets") ?? []
+        shortcut = defaults.decoded(Shortcut.self, forKey: "shortcut") ?? .standard
         updatePresetName()
 
         let system = AudioObjectID(kAudioObjectSystemObject)
@@ -170,15 +180,16 @@ final class BassJumpController: ObservableObject {
 
     private func updateHotKey() {
         hotKey = nil
-        guard hotKeyEnabled else { return }
-        hotKey = HotKey { [weak self] in
+        guard hotKeyEnabled, !hotKeySuspended else { hotKeyConflict = false; return }
+        hotKey = HotKey(keyCode: shortcut.keyCode, modifiers: shortcut.modifiers) { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
                 self.enabled.toggle()
                 log.info("Shortcut: BassJump \(self.enabled ? "on" : "off", privacy: .public)")
             }
         }
-        if hotKey == nil { log.error("Couldn't register \(HotKey.defaultDisplay, privacy: .public) — another app may be using it") }
+        hotKeyConflict = hotKey == nil
+        if hotKey == nil { log.error("Couldn't register \(self.shortcut.display, privacy: .public) — another app may be using it") }
     }
 
     // MARK: Meter, watchdog, permission check, diagnostics
@@ -188,7 +199,10 @@ final class BassJumpController: ObservableObject {
     private var maxPeak: Float = 0, maxInput: Float = 0
     private var silentWhileOthersPlay = 0
     private var suspectApp = ""
-    private lazy var tapVerified = defaults.bool(forKey: "tapVerified")
+    /// The tap has delivered sound at least once, so the audio-recording permission works.
+    @Published private(set) var tapVerified: Bool
+    /// True for someone who has used BassJump Revived before (skips first-run setup).
+    var hasHistory: Bool { !profiles.isEmpty || tapVerified }
 
     /// An app (not us, not one we exclude from the tap) that currently has audio output running.
     private func playingIncludedApp() -> String? {
@@ -536,6 +550,35 @@ final class BassJumpController: ObservableObject {
             ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
                 .map { FileManager.default.displayName(atPath: $0.path).replacingOccurrences(of: ".app", with: "") }
             ?? bundleID
+    }
+
+    // MARK: Diagnostics
+
+    /// Engine and settings state for the diagnostics report.
+    func diagnosticState() -> [String] {
+        let dsp = engine.dsp
+        var lines = [
+            "Status: \(status.text)",
+            "Enabled: \(enabled)   Night mode: \(nightMode)   Loudness: \(loudness)   Follow volume: \(followSystemVolume)",
+            "Pause for headphones: \(pauseForHeadphones)   Skip calls: \(skipCalls)   Stereo subs: \(stereoSubs) (active: \(stereoActive))",
+            "Subwoofer setting: \(subwooferUID.isEmpty ? "Automatic" : subwooferUID)",
+            "Ignored apps: \(ignoredApps.isEmpty ? "none" : ignoredApps.joined(separator: ", "))",
+            "Shortcut: \(hotKeyEnabled ? shortcut.display : "off")\(hotKeyConflict ? " (conflict — not registered)" : "")",
+            "Audio permission verified: \(tapVerified)   Permission warning showing: \(permissionProblem)",
+            "Profile for: \(profileOutputName ?? "—")",
+            "  crossover \(Int(crossover)) Hz, level \(Int(level * 100))%, aligned \(alignedMode), high-pass \(highPassMain), alignment \(alignmentMs) ms, phase \(invertSub ? "flipped" : "normal")",
+            "  EQ \(eqEnabled ? "on" : "off"): \(eq1DB) dB @ \(Int(eq1Hz)) Hz, \(eq2DB) dB @ \(Int(eq2Hz)) Hz",
+            "Saved profiles: \(profiles.count)   Custom presets: \(customPresets.count)",
+        ]
+        if let config = engine.config {
+            lines.append("Engine: running — aligned \(config.aligned), sub \(config.subUID), main \(config.mainUID ?? "—"), second sub \(config.subUID2 ?? "—"), excluded processes \(config.excludedProcesses.count)")
+            lines.append("DSP: \(Int(dsp.sampleRate)) Hz, gain \(dsp.subGain), crossover \(dsp.crossoverHz), limiter ceiling \(dsp.limiterThreshold), limiter gain \(dsp.limiterGainNow), renders \(dsp.renderCount), input peak \(dsp.inputPeak), output peak \(dsp.peak)")
+        } else {
+            lines.append("Engine: stopped")
+        }
+        let playing = AudioSystem.audioProcesses().filter(\.isPlaying).map { $0.bundleID.isEmpty ? "pid \($0.pid)" : $0.bundleID }
+        lines.append("Apps with audio running: \(playing.isEmpty ? "none" : playing.joined(separator: ", "))")
+        return lines
     }
 
     // MARK: Notifications

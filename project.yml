@@ -15,7 +15,7 @@ settings:
     CODE_SIGN_IDENTITY: "Apple Development"
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "5.2"
-    CURRENT_PROJECT_VERSION: "8"
+    CURRENT_PROJECT_VERSION: "9"
     ENABLE_HARDENED_RUNTIME: NO
 targets:
   BassJump:

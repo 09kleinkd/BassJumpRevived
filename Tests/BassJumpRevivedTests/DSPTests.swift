@@ -195,3 +195,34 @@ final class BandAnalyzerTests: XCTestCase {
         XCTAssertLessThan(at400, loudest.1 - 30)
     }
 }
+
+import AppKit
+import Carbon.HIToolbox
+
+final class ShortcutTests: XCTestCase {
+    private func key(_ chars: String, _ code: Int, _ flags: NSEvent.ModifierFlags) -> NSEvent {
+        NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: 0,
+                         context: nil, characters: chars, charactersIgnoringModifiers: chars,
+                         isARepeat: false, keyCode: UInt16(code))!
+    }
+
+    func testRecordsModifiersAndKey() {
+        let s = Shortcut(event: key("j", kVK_ANSI_J, [.control, .option]))
+        XCTAssertEqual(s?.display, "⌃⌥J")
+        XCTAssertEqual(s?.keyCode, UInt32(kVK_ANSI_J))
+        XCTAssertEqual(s?.modifiers, UInt32(controlKey | optionKey))
+    }
+
+    func testRejectsShiftOnlyAndBareKeys() {
+        XCTAssertNil(Shortcut(event: key("j", kVK_ANSI_J, [])))
+        XCTAssertNil(Shortcut(event: key("J", kVK_ANSI_J, [.shift])))
+    }
+
+    func testFunctionKeysCanStandAlone() {
+        XCTAssertEqual(Shortcut(event: key("\u{F70F}", kVK_F12, [.function]))?.display, "F12")
+    }
+
+    func testDefaultIsControlOptionCommandB() {
+        XCTAssertEqual(Shortcut.standard.display, "⌃⌥⌘B")
+    }
+}

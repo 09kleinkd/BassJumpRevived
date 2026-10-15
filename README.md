@@ -54,7 +54,14 @@ system audio recording when asked.
 - **Per-output settings:** crossover, level and mode are remembered separately for each output
   (e.g. MacBook speakers vs. a Studio Display) and switch automatically with the output.
 - **Custom presets:** set crossover/level, press **+** next to the preset menu and name it.
-- **Shortcut ⌃⌥⌘B** turns BassJump on/off from anywhere (no Accessibility permission needed).
+- **Shortcut ⌃⌥⌘B** turns BassJump on/off from anywhere (no Accessibility permission needed);
+  change it in Settings → General.
+- **First-run setup** walks new users through connecting the BassJump, the system-audio
+  permission (with a live "BassJump is hearing your Mac" check) and picking a sound.
+  Run it again from Settings → General.
+- **Settings window** (gear button in the menu): shortcut, launch at login, notifications,
+  updates, subwoofer choice, two-BassJump stereo, apps without bass, and diagnostics. The menu
+  keeps the everyday sound controls.
 - **Per-app rules:** calls (Zoom, Teams, FaceTime, Webex, Slack, Discord…) are skipped by
   default, and any app can be excluded from the Apps card. Excluded apps are simply left out
   of the tap.
@@ -125,6 +132,11 @@ low + high summing flat, exact delay-line timing, and the limiter never exceedin
 `open /Applications/BassJump.app --args --show-panel` opens the popover at launch.
 
 ## Troubleshooting
+**Settings → Help → Copy Diagnostic Info** copies a report (app/macOS version, audio devices,
+BassJump's state and settings, and its last 30 minutes of log) to paste into a GitHub issue.
+From Terminal: `/Applications/BassJump.app/Contents/MacOS/BassJump --write-diagnostics ~/Desktop/bj.txt`
+(quit BassJump first).
+
 ```
 defaults write local.bassjump.revived debugLogging -bool YES   # then relaunch
 log stream --predicate 'subsystem == "local.bassjump.revived"'

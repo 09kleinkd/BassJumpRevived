@@ -23,8 +23,6 @@ struct MenuView: View {
                 if c.permissionProblem { permissionCard }
                 if cal.phase != .idle { calibrationCard }
                 soundCard
-                appsCard
-                optionsCard
                 footer
             }
         }
@@ -293,44 +291,6 @@ struct MenuView: View {
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: Apps
-
-    private var appsCard: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: 11) {
-                SectionHeader(title: "Apps", detail: nil)
-                SwitchRow(icon: "phone", title: "Skip calls (Zoom, Teams, FaceTime…)", isOn: $c.skipCalls)
-                ForEach(c.ignoredApps, id: \.self) { bundle in
-                    HStack(spacing: 8) {
-                        RowIcon(name: "speaker.slash")
-                        Text(c.appName(for: bundle)).lineLimit(1)
-                        Spacer()
-                        Button { c.toggleIgnored(bundle) } label: { Image(systemName: "xmark.circle.fill") }
-                            .buttonStyle(.borderless).foregroundStyle(.secondary)
-                            .help("Give this app bass again")
-                    }
-                }
-                Menu {
-                    let candidates = c.audioApps.filter { !c.ignoredApps.contains($0.bundleID) && !$0.isCallApp }
-                    if candidates.isEmpty {
-                        Text("Play something in the app first")
-                    }
-                    ForEach(candidates) { app in
-                        Button { c.toggleIgnored(app.bundleID) } label: {
-                            Label(app.name, systemImage: app.isPlaying ? "speaker.wave.2.fill" : "app")
-                        }
-                    }
-                } label: {
-                    Label("No bass for an app…", systemImage: "plus")
-                }
-                .menuStyle(.button)
-                .glassCapsuleButton()
-                .controlSize(.small)
-                .fixedSize()
-            }
-        }
-    }
-
     // MARK: Update
 
     private var updateCard: some View {
@@ -349,46 +309,13 @@ struct MenuView: View {
         }
     }
 
-    // MARK: Options
-
-    private var optionsCard: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: 11) {
-                SectionHeader(title: "Options", detail: nil)
-                SwitchRow(icon: "speaker.wave.2", title: "Follow system volume", isOn: $c.followSystemVolume)
-                SwitchRow(icon: "headphones", title: "Pause for headphones", isOn: $c.pauseForHeadphones)
-                    .help("Pauses the sub when sound goes to headphones, Bluetooth or AirPlay")
-                SwitchRow(icon: "keyboard", title: "Shortcut \(c.hotKeyDisplay)", isOn: $c.hotKeyEnabled)
-                SwitchRow(icon: "power", title: "Launch at login", isOn: $c.launchAtLogin)
-                SwitchRow(icon: "bell", title: "Connect notifications", isOn: $c.notifyOnConnect)
-                SwitchRow(icon: "waveform", title: "Animated menu bar icon", isOn: $c.liveIcon)
-                SwitchRow(icon: "arrow.down.circle", title: "Check for updates automatically",
-                          isOn: $updater.automaticChecks)
-                SwitchRow(icon: "hifispeaker.2", title: c.stereoActive ? "Stereo with two BassJumps (active)" : "Stereo with two BassJumps",
-                          isOn: $c.stereoSubs)
-                    .help("With two BassJumps plugged in, left bass goes to one and right to the other")
-                HStack(spacing: 8) {
-                    RowIcon(name: "hifispeaker")
-                    Text("Subwoofer").fixedSize()
-                    Spacer(minLength: 8)
-                    Picker("Subwoofer", selection: $c.subwooferUID) {
-                        Text("Automatic").tag("")
-                        ForEach(c.outputDevices.filter { !$0.isBuiltIn }) { Text($0.name).tag($0.uid) }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: 150)
-                }
-            }
-        }
-    }
-
     private var footer: some View {
         HStack {
             Text("BassJump Revived \(version)").font(.caption2).foregroundStyle(.tertiary)
             Spacer()
-            Button("Updates…") { updater.checkForUpdates() }
+            Button { AppDelegate.shared?.showSettings() } label: { Label("Settings…", systemImage: "gearshape") }
                 .glassCapsuleButton().controlSize(.small)
-                .disabled(!updater.canCheck).help("Check for updates")
+                .help("Shortcut, apps without bass, subwoofer choice, updates and diagnostics")
             Button("Quit") { NSApplication.shared.terminate(nil) }
                 .glassCapsuleButton().controlSize(.small)
         }

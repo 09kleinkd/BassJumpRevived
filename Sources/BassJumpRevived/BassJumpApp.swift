@@ -15,7 +15,10 @@ struct BassJumpApp: App {
 /// (MenuBarExtra's window can leave empty glass above and below it on recent macOS).
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private(set) static weak var shared: AppDelegate?
     private var statusItem: NSStatusItem!
+    private var settingsWindow: NSWindow?
+    private var onboardingWindow: NSWindow?
     private let popover = NSPopover()
     private let controller = BassJumpController()
     private lazy var calibrator = Calibrator(controller: controller)
@@ -23,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Self.shared = self
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.target = self
         statusItem.button?.action = #selector(togglePopover(_:))
@@ -38,6 +42,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] status, level in self?.updateIcon(playing: status.isPlaying, level: level) }
             .store(in: &cancellables)
+
+        // First run: guided setup. People upgrading from earlier versions skip it.
+        let defaults = UserDefaults.standard
+        if CommandLine.arguments.contains("--setup") {
+            DispatchQueue.main.async { self.showOnboarding() }
+        } else if !defaults.bool(forKey: "onboarded") {
+            if controller.hasHistory {
+                defaults.set(true, forKey: "onboarded")
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.showOnboarding() }
+            }
+        }
+        // `--write-diagnostics <file>` writes the diagnostic report and quits (for support/testing).
+        if let i = CommandLine.arguments.firstIndex(of: "--write-diagnostics"), i + 1 < CommandLine.arguments.count {
+            let path = CommandLine.arguments[i + 1]
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(3))       // let the engine start
+                let text = await Diagnostics.report(controller: self.controller)
+                try? text.write(toFile: path, atomically: true, encoding: .utf8)
+                NSApp.terminate(nil)
+            }
+        }
+        if CommandLine.arguments.contains("--settings") {
+            DispatchQueue.main.async { self.showSettings() }
+        }
 
         // `open BassJump.app --args --show-panel` opens the panel at launch (handy for testing).
         if CommandLine.arguments.contains("--show-panel") {
@@ -57,6 +86,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         image?.isTemplate = true
         statusItem.button?.image = image
+    }
+
+    // MARK: Windows
+
+    func showSettings() {
+        popover.performClose(nil)
+        if settingsWindow == nil {
+            let host = NSHostingController(rootView: SettingsView()
+                .environmentObject(controller).environmentObject(updater))
+            let window = NSWindow(contentViewController: host)
+            window.title = "BassJump Settings"
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            window.center()
+            settingsWindow = window
+        }
+        NSApp.activate()
+        settingsWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    func showOnboarding() {
+        popover.performClose(nil)
+        if onboardingWindow == nil {
+            let view = OnboardingView { [weak self] calibrate in self?.finishOnboarding(calibrate: calibrate) }
+                .environmentObject(controller)
+            let window = NSWindow(contentViewController: NSHostingController(rootView: view))
+            window.title = "Set Up BassJump"
+            window.styleMask = [.titled, .closable, .fullSizeContentView]
+            window.titlebarAppearsTransparent = true
+            window.isReleasedWhenClosed = false
+            window.center()
+            NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { _ in
+                UserDefaults.standard.set(true, forKey: "onboarded")
+            }
+            onboardingWindow = window
+        }
+        NSApp.activate()
+        onboardingWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    private func finishOnboarding(calibrate: Bool) {
+        UserDefaults.standard.set(true, forKey: "onboarded")
+        onboardingWindow?.close()
+        onboardingWindow = nil
+        // Point at the menu bar icon; with "Calibrate…" the calibration card opens there.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self else { return }
+            if calibrate { self.calibrator.prepare() }
+            self.togglePopover(nil)
+        }
     }
 
     @objc private func togglePopover(_ sender: Any?) {

@@ -15,6 +15,10 @@ struct EngineConfig: Equatable {
     var fillAllChannels = false
     /// When filling, also feed centre/LFE channels with (L+R)/2.
     var fillCenter = false
+    /// Second BassJump: left bass goes to `subUID`, right bass to this one.
+    var subUID2: String? = nil
+    /// Process objects to leave out of the tap (calls, user-ignored apps).
+    var excludedProcesses: [AudioObjectID] = []
 }
 
 /// Captures the system mix with a Core Audio process tap and plays it through a private
@@ -41,20 +45,22 @@ final class BassEngine {
     private let outSub = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
     private let outL = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
     private let outR = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
-    /// Role of each aggregate output channel: 0 silent, 1 main L, 2 main R, 3 sub, 4 main mid (L+R)/2.
+    private let outSubR = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
+    /// Role of each aggregate output channel: 0 silent, 1 main L, 2 main R, 3 sub (mono or left),
+    /// 4 main mid (L+R)/2, 6 right sub.
     private let roles = UnsafeMutablePointer<UInt8>.allocate(capacity: maxChannels)
     private var roleCount = 0
     /// Number of aggregate input channels that belong to subdevices (the tap follows them).
     private var tapFirstChannel = 0
 
     init() {
-        for p in [inL, inR, outSub, outL, outR] { p.initialize(repeating: 0, count: Self.maxFrames) }
+        for p in [inL, inR, outSub, outL, outR, outSubR] { p.initialize(repeating: 0, count: Self.maxFrames) }
         roles.initialize(repeating: 0, count: Self.maxChannels)
     }
 
     deinit {
         stop()
-        for p in [inL, inR, outSub, outL, outR] { p.deallocate() }
+        for p in [inL, inR, outSub, outL, outR, outSubR] { p.deallocate() }
         roles.deallocate()
     }
 
@@ -71,9 +77,10 @@ final class BassEngine {
                 }
                 main = m
             }
-            try createTap(muted: config.aligned)
+            let sub2 = config.subUID2.flatMap { AudioSystem.device(uid: $0) }
+            try createTap(muted: config.aligned, excluding: config.excludedProcesses)
             try createAggregate(config)
-            mapChannels(main: main, sub: sub, fillAll: config.fillAllChannels, fillCenter: config.fillCenter)
+            mapChannels(main: main, sub: sub, sub2: sub2, fillAll: config.fillAllChannels, fillCenter: config.fillCenter)
             try startIO()
             self.config = config
             log.info("Engine started: \(config.aligned ? "aligned" : "sub-only", privacy: .public), sub=\(sub.name, privacy: .public), main=\(main?.name ?? "-", privacy: .public), \(self.dsp.sampleRate) Hz, tap input at ch \(self.tapFirstChannel), roles \((0..<self.roleCount).map { String(self.roles[$0]) }.joined(), privacy: .public)")
@@ -105,10 +112,13 @@ final class BassEngine {
 
     // MARK: - Setup
 
-    private func createTap(muted: Bool) throws {
-        // Exclude ourselves so our own output is never fed back into the tap.
+    private func createTap(muted: Bool, excluding: [AudioObjectID]) throws {
+        // Exclude ourselves so our own output is never fed back into the tap, plus any apps
+        // the user doesn't want bass for (calls etc.). In aligned mode excluded apps simply
+        // keep playing normally, since only tapped processes are muted.
         let me = AudioSystem.ownProcessObject()
-        let description = CATapDescription(stereoGlobalTapButExcludeProcesses: me == kAudioObjectUnknown ? [] : [me])
+        let exclude = (me == kAudioObjectUnknown ? [] : [me]) + excluding
+        let description = CATapDescription(stereoGlobalTapButExcludeProcesses: exclude)
         description.name = "BassJump Tap"
         description.isPrivate = true
         description.muteBehavior = muted ? .muted : .unmuted
@@ -128,6 +138,9 @@ final class BassEngine {
         } else {
             clockUID = config.subUID
             subdevices.append([kAudioSubDeviceUIDKey: config.subUID])
+        }
+        if let second = config.subUID2 {
+            subdevices.append([kAudioSubDeviceUIDKey: second, kAudioSubDeviceDriftCompensationKey: true])
         }
         let description: [String: Any] = [
             kAudioAggregateDeviceNameKey: "BassJump Crossover",
@@ -151,7 +164,8 @@ final class BassEngine {
 
     /// Aggregate output channels are the subdevices' channels in list order (main first).
     /// Aggregate inputs are the subdevices' inputs, followed by the tap's stereo pair.
-    private func mapChannels(main: AudioDeviceInfo?, sub: AudioDeviceInfo, fillAll: Bool, fillCenter: Bool) {
+    private func mapChannels(main: AudioDeviceInfo?, sub: AudioDeviceInfo, sub2: AudioDeviceInfo?,
+                             fillAll: Bool, fillCenter: Bool) {
         roles.update(repeating: 0, count: Self.maxChannels)
         var index = 0
         var subInputs = AudioSystem.inputChannelCount(sub.id)
@@ -168,7 +182,13 @@ final class BassEngine {
             subInputs += AudioSystem.inputChannelCount(main.id)
         }
         for c in 0..<sub.outputChannels where index + c < Self.maxChannels { roles[index + c] = 3 }
-        roleCount = min(index + sub.outputChannels, Self.maxChannels)
+        index += sub.outputChannels
+        if let sub2 {
+            for c in 0..<sub2.outputChannels where index + c < Self.maxChannels { roles[index + c] = 6 }
+            index += sub2.outputChannels
+            subInputs += AudioSystem.inputChannelCount(sub2.id)
+        }
+        roleCount = min(index, Self.maxChannels)
         tapFirstChannel = subInputs
     }
 
@@ -196,6 +216,8 @@ final class BassEngine {
     private func startIO() throws {
         let dsp = self.dsp
         let (inL, inR, outSub, outL, outR, roles) = (self.inL, self.inR, self.outSub, self.outL, self.outR, self.roles)
+        let outSubR = self.outSubR
+        let stereoSubs = roleCount > 0 && (0..<roleCount).contains { roles[$0] == 6 }
         let roleCount = self.roleCount
         let tapFirst = self.tapFirstChannel
         let aligned = roleCount > 0 && (0..<roleCount).contains { roles[$0] == 1 || roles[$0] == 2 || roles[$0] == 4 }
@@ -233,7 +255,8 @@ final class BassEngine {
 
             // 2. Crossover.
             dsp.render(inL: inL, inR: inR, frames: frames, sub: outSub,
-                       mainL: aligned ? outL : nil, mainR: aligned ? outR : nil)
+                       mainL: aligned ? outL : nil, mainR: aligned ? outR : nil,
+                       subR: stereoSubs ? outSubR : nil)
 
             // 3. Write every aggregate output channel by role.
             channel = 0
@@ -250,6 +273,7 @@ final class BassEngine {
                     case 2: for f in 0..<n { data[f * ch + c] = outR[f] }
                     case 3: for f in 0..<n { data[f * ch + c] = outSub[f] }
                     case 4: for f in 0..<n { data[f * ch + c] = (outL[f] + outR[f]) * 0.5 }
+                    case 6: for f in 0..<n { data[f * ch + c] = outSubR[f] }
                     default: for f in 0..<n { data[f * ch + c] = 0 }
                     }
                 }

@@ -90,3 +90,16 @@ final class DSPTests: XCTestCase {
         XCTAssertEqual(sub.map(abs).max()!, 0)
     }
 }
+
+final class BandAnalyzerTests: XCTestCase {
+    func testSineLandsInItsBand() {
+        let rate = 48_000.0
+        let x = (0..<48_000).map { Float(0.5 * sin(2 * .pi * 100 * Double($0) / rate)) }
+        let bands = BandAnalyzer.thirdOctaveLevels(x, sampleRate: rate)
+        let loudest = bands.max { $0.1 < $1.1 }!
+        XCTAssertEqual(loudest.0, 100)
+        // Two octaves away should be far down.
+        let at400 = bands.first { $0.0 == 400 }!.1
+        XCTAssertLessThan(at400, loudest.1 - 30)
+    }
+}

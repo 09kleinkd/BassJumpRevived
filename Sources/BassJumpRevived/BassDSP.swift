@@ -96,6 +96,8 @@ final class CrossoverDSP {
     var highPassMain = false
     /// Positive delays the main speakers, negative delays the sub (milliseconds).
     var alignmentMs: Double = 0
+    /// Flip the sub's polarity (can tighten bass depending on placement).
+    var invertSub = false
     var sampleRate: Double = 48_000
 
     // Diagnostics (audio thread writes)
@@ -105,6 +107,9 @@ final class CrossoverDSP {
 
     // Render state
     private var subHP = Biquad(), subLP = LR4(), mainHPL = LR4(), mainHPR = LR4()
+    private var subHP2 = Biquad(), subLP2 = LR4()          // right channel when driving two subs
+    private let delaySub2 = DelayLine(capacity: 16_384)
+    private var gain2: Float = 0
     private let delayL = DelayLine(capacity: 16_384)
     private let delayR = DelayLine(capacity: 16_384)
     private let delaySub = DelayLine(capacity: 16_384)
@@ -112,9 +117,9 @@ final class CrossoverDSP {
     private var gain: Float = 0
 
     func reset() {
-        subHP.reset(); subLP.reset(); mainHPL.reset(); mainHPR.reset()
-        delayL.reset(); delayR.reset(); delaySub.reset()
-        gain = 0; peak = 0; inputPeak = 0
+        subHP.reset(); subLP.reset(); mainHPL.reset(); mainHPR.reset(); subHP2.reset(); subLP2.reset()
+        delayL.reset(); delayR.reset(); delaySub.reset(); delaySub2.reset()
+        gain = 0; gain2 = 0; peak = 0; inputPeak = 0
     }
 
     @inline(__always)
@@ -123,22 +128,26 @@ final class CrossoverDSP {
         if crossoverHz != appliedCrossover || rate != appliedRate {
             let f = min(max(crossoverHz, 40), rate * 0.45)
             subLP.setLowPass(f, rate)
+            subLP2.setLowPass(f, rate)
             mainHPL.setHighPass(f, rate)
             mainHPR.setHighPass(f, rate)
             appliedCrossover = crossoverHz
         }
         if subsonicHz != appliedSubsonic || rate != appliedRate {
             subHP.setHighPass(freq: max(subsonicHz, 10), q: 0.70710678, sampleRate: rate)
+            subHP2.setHighPass(freq: max(subsonicHz, 10), q: 0.70710678, sampleRate: rate)
             appliedSubsonic = subsonicHz
         }
         appliedRate = rate
     }
 
-    /// `inL`/`inR`: tapped system audio. `sub` receives the bass. `mainL`/`mainR` (aligned
-    /// mode only) receive the speaker signal; pass nil in sub-only mode.
+    /// `inL`/`inR`: tapped system audio. `sub` receives the bass (mono, or the left bass when
+    /// `subR` is given for a stereo pair of subs). `mainL`/`mainR` (aligned mode only) receive
+    /// the speaker signal; pass nil in sub-only mode.
     func render(inL: UnsafePointer<Float>, inR: UnsafePointer<Float>, frames: Int,
                 sub: UnsafeMutablePointer<Float>,
-                mainL: UnsafeMutablePointer<Float>?, mainR: UnsafeMutablePointer<Float>?) {
+                mainL: UnsafeMutablePointer<Float>?, mainR: UnsafeMutablePointer<Float>?,
+                subR: UnsafeMutablePointer<Float>? = nil) {
         updateCoefficientsIfNeeded()
         renderCount &+= 1
 
@@ -150,19 +159,28 @@ final class CrossoverDSP {
         let mainDelay = alignmentMs > 0 ? delayFrames : 0
         let subDelay = alignmentMs < 0 ? delayFrames : 0
 
+        let polarity: Float = invertSub ? -1 : 1
         var blockPeak: Float = 0, blockIn: Float = 0
         for i in 0..<frames {
             let l = inL[i], r = inR[i]
             blockIn = max(blockIn, abs(l), abs(r))
-
-            // Sub
-            var x = subHP.process((l + r) * 0.5)
-            x = subLP.process(x)
             gain += (target - gain) * smoothing
-            x = tanhf(x * gain)                  // transparent below ~0.5, never exceeds 1
+
+            // Sub (mono, or left when driving a stereo pair)
+            var x = subHP.process(subR == nil ? (l + r) * 0.5 : l)
+            x = subLP.process(x)
+            x = tanhf(x * gain) * polarity       // transparent below ~0.5, never exceeds 1
             x = delaySub.process(x, delay: subDelay)
             sub[i] = x
             blockPeak = max(blockPeak, abs(x))
+
+            if let subR {
+                var y = subLP2.process(subHP2.process(r))
+                y = tanhf(y * gain) * polarity
+                y = delaySub2.process(y, delay: subDelay)
+                subR[i] = y
+                blockPeak = max(blockPeak, abs(y))
+            }
 
             // Main speakers
             if let mainL, let mainR {

@@ -4,6 +4,7 @@ import SwiftUI
 /// Control Center; earlier systems fall back to material cards.
 struct MenuView: View {
     @EnvironmentObject var c: BassJumpController
+    @EnvironmentObject var cal: Calibrator
     @ObservedObject var meter: MeterModel
     @State private var savingPreset = false
     @State private var newPresetName = ""
@@ -17,7 +18,9 @@ struct MenuView: View {
             VStack(spacing: 10) {
                 statusCard
                 if c.permissionProblem { permissionCard }
+                if cal.phase != .idle { calibrationCard }
                 soundCard
+                appsCard
                 optionsCard
                 footer
             }
@@ -70,12 +73,62 @@ struct MenuView: View {
         }
     }
 
+    // MARK: Calibration
+
+    @ViewBuilder
+    private var calibrationCard: some View {
+        GlassCard(tint: .blue) {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Calibrate", systemImage: "waveform.badge.mic").font(.subheadline.bold())
+                switch cal.phase {
+                case .ready:
+                    Text("Pause your music and keep the room quiet. BassJump will play three short bursts of noise (about 15 seconds) and listen with \(cal.inputName).")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    HStack {
+                        Button("Start") { cal.start() }.glassCapsuleButton(prominent: true)
+                        Button("Cancel") { cal.cancel() }.glassCapsuleButton()
+                    }.controlSize(.small)
+                case .running(let step, let progress):
+                    Text(step).font(.caption)
+                    ProgressView(value: progress).progressViewStyle(.linear)
+                    Button("Cancel") { cal.cancel() }.glassCapsuleButton().controlSize(.small)
+                case .done(let r):
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Your speakers roll off around \(Int(r.rolloff)) Hz.").font(.caption)
+                        Text("Crossover \(Int(r.crossover)) Hz · Bass level \(Int(r.level * 100))% · Phase \(r.invert ? "flipped" : "normal")")
+                            .font(.caption.bold())
+                        if let note = r.note {
+                            Text(note).font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    HStack {
+                        Button("Apply") { cal.apply(r) }.glassCapsuleButton(prominent: true)
+                        Button("Discard") { cal.cancel() }.glassCapsuleButton()
+                    }.controlSize(.small)
+                case .failed(let message):
+                    Text(message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Button("Close") { cal.cancel() }.glassCapsuleButton().controlSize(.small)
+                case .idle:
+                    EmptyView()
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
     // MARK: Sound
 
     private var soundCard: some View {
         GlassCard {
             VStack(alignment: .leading, spacing: 14) {
-                SectionHeader(title: "Sound", detail: c.profileOutputName.map { "for \($0)" })
+                HStack {
+                    SectionHeader(title: "Sound", detail: c.profileOutputName.map { "for \($0)" })
+                    Spacer(minLength: 4)
+                    Button { cal.prepare() } label: { Label("Calibrate", systemImage: "waveform.badge.mic") }
+                        .glassCapsuleButton().controlSize(.small)
+                        .disabled(cal.phase != .idle)
+                        .help("Measure your room with the microphone and set crossover, level and phase")
+                }
 
                 HStack(alignment: .top, spacing: 0) {
                     ForEach(BassPreset.builtIn) { preset in
@@ -100,6 +153,11 @@ struct MenuView: View {
                             range: 60...250, step: 5) { "\(Int($0)) Hz" }
                 ValueSlider(icon: "speaker.wave.3", title: "Bass level", value: $c.level,
                             range: 0...1.5, step: 0.05) { "\(Int($0 * 100))%" }
+
+                SwitchRow(icon: "ear", title: "Loudness (more bass when quiet)", isOn: $c.loudness)
+                    .help("Adds up to +9 dB of bass as you turn the volume down, like the Loudness button on a stereo")
+                SwitchRow(icon: "arrow.left.arrow.right", title: "Flip sub phase", isOn: $c.invertSub)
+                    .help("Try both — keep whichever sounds fuller where your BassJump sits")
 
                 VStack(alignment: .leading, spacing: 4) {
                     SwitchRow(icon: "metronome", title: "Time-aligned mode", isOn: $c.alignedMode)
@@ -153,6 +211,44 @@ struct MenuView: View {
         .frame(maxWidth: .infinity)
     }
 
+    // MARK: Apps
+
+    private var appsCard: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 11) {
+                SectionHeader(title: "Apps", detail: nil)
+                SwitchRow(icon: "phone", title: "Skip calls (Zoom, Teams, FaceTime…)", isOn: $c.skipCalls)
+                ForEach(c.ignoredApps, id: \.self) { bundle in
+                    HStack(spacing: 8) {
+                        RowIcon(name: "speaker.slash")
+                        Text(c.appName(for: bundle)).lineLimit(1)
+                        Spacer()
+                        Button { c.toggleIgnored(bundle) } label: { Image(systemName: "xmark.circle.fill") }
+                            .buttonStyle(.borderless).foregroundStyle(.secondary)
+                            .help("Give this app bass again")
+                    }
+                }
+                Menu {
+                    let candidates = c.audioApps.filter { !c.ignoredApps.contains($0.bundleID) && !$0.isCallApp }
+                    if candidates.isEmpty {
+                        Text("Play something in the app first")
+                    }
+                    ForEach(candidates) { app in
+                        Button { c.toggleIgnored(app.bundleID) } label: {
+                            Label(app.name, systemImage: app.isPlaying ? "speaker.wave.2.fill" : "app")
+                        }
+                    }
+                } label: {
+                    Label("No bass for an app…", systemImage: "plus")
+                }
+                .menuStyle(.button)
+                .glassCapsuleButton()
+                .controlSize(.small)
+                .fixedSize()
+            }
+        }
+    }
+
     // MARK: Options
 
     private var optionsCard: some View {
@@ -164,6 +260,11 @@ struct MenuView: View {
                     .help("Pauses the sub when sound goes to headphones, Bluetooth or AirPlay")
                 SwitchRow(icon: "keyboard", title: "Shortcut \(c.hotKeyDisplay)", isOn: $c.hotKeyEnabled)
                 SwitchRow(icon: "power", title: "Launch at login", isOn: $c.launchAtLogin)
+                SwitchRow(icon: "bell", title: "Connect notifications", isOn: $c.notifyOnConnect)
+                SwitchRow(icon: "waveform", title: "Animated menu bar icon", isOn: $c.liveIcon)
+                SwitchRow(icon: "hifispeaker.2", title: c.stereoActive ? "Stereo with two BassJumps (active)" : "Stereo with two BassJumps",
+                          isOn: $c.stereoSubs)
+                    .help("With two BassJumps plugged in, left bass goes to one and right to the other")
                 HStack(spacing: 8) {
                     RowIcon(name: "hifispeaker")
                     Text("Subwoofer").fixedSize()

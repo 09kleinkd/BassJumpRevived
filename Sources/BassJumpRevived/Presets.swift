@@ -37,6 +37,35 @@ struct OutputProfile: Codable, Equatable {
     var level = 0.6
     var highPassMain = false
     var alignmentMs = 0.0
+    var invertSub = false
+
+    init(aligned: Bool = false, crossover: Double = 150, level: Double = 0.6,
+         highPassMain: Bool = false, alignmentMs: Double = 0, invertSub: Bool = false) {
+        self.aligned = aligned; self.crossover = crossover; self.level = level
+        self.highPassMain = highPassMain; self.alignmentMs = alignmentMs; self.invertSub = invertSub
+    }
+
+    /// Tolerates profiles saved by older versions (missing keys fall back to defaults).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        aligned = try c.decodeIfPresent(Bool.self, forKey: .aligned) ?? false
+        crossover = try c.decodeIfPresent(Double.self, forKey: .crossover) ?? 150
+        level = try c.decodeIfPresent(Double.self, forKey: .level) ?? 0.6
+        highPassMain = try c.decodeIfPresent(Bool.self, forKey: .highPassMain) ?? false
+        alignmentMs = try c.decodeIfPresent(Double.self, forKey: .alignmentMs) ?? 0
+        invertSub = try c.decodeIfPresent(Bool.self, forKey: .invertSub) ?? false
+    }
+}
+
+/// Apps whose audio is usually a call — skipped by default so voices don't rumble the sub.
+/// Matched as bundle-ID prefixes (helpers like `com.microsoft.teams2.helper` match too).
+enum CallApps {
+    static let bundlePrefixes = [
+        "us.zoom.", "com.microsoft.teams", "com.apple.FaceTime", "com.apple.avconferenced",
+        "com.apple.TelephonyUtilities", "com.apple.mobilephone", "com.cisco.webexmeetings",
+        "Cisco-Systems.Spark", "com.tinyspeck.slackmacgap", "com.hnc.Discord", "com.skype.",
+        "com.webex.", "com.ringcentral.",
+    ]
 }
 
 /// Small JSON-in-UserDefaults helper.

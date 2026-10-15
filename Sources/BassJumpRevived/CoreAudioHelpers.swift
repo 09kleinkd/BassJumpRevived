@@ -150,6 +150,12 @@ enum AudioSystem {
         return (0..<count).map { descriptions[$0].mChannelLabel }
     }
 
+    static func defaultInputName() -> String? {
+        let id = (try? CA.get(AudioObjectID(kAudioObjectSystemObject),
+                              address(kAudioHardwarePropertyDefaultInputDevice), AudioObjectID(kAudioObjectUnknown))) ?? 0
+        return id == kAudioObjectUnknown ? nil : CA.string(id, kAudioObjectPropertyName)
+    }
+
     static func defaultOutputDevice() -> AudioObjectID {
         (try? CA.get(AudioObjectID(kAudioObjectSystemObject),
                      address(kAudioHardwarePropertyDefaultOutputDevice), AudioObjectID(kAudioObjectUnknown)))
@@ -191,6 +197,24 @@ enum AudioSystem {
         let a = address(kAudioDevicePropertyMute, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain)
         guard CA.has(id, a), let m = try? CA.get(id, a, UInt32(0)) else { return false }
         return m != 0
+    }
+
+    /// An app that is (or recently was) using audio, as seen by Core Audio.
+    struct AudioProcess: Hashable {
+        let object: AudioObjectID
+        let pid: pid_t
+        let bundleID: String
+        let isPlaying: Bool
+    }
+
+    static func audioProcesses() -> [AudioProcess] {
+        let me = getpid()
+        return CA.objectList(AudioObjectID(kAudioObjectSystemObject), address(kAudioHardwarePropertyProcessObjectList)).compactMap { p in
+            guard let pid = try? CA.get(p, address(kAudioProcessPropertyPID), pid_t(0)), pid != me else { return nil }
+            let bundle = CA.string(p, kAudioProcessPropertyBundleID) ?? ""
+            let playing = ((try? CA.get(p, address(kAudioProcessPropertyIsRunningOutput), UInt32(0))) ?? 0) != 0
+            return AudioProcess(object: p, pid: pid, bundleID: bundle, isPlaying: playing)
+        }
     }
 
     /// True if any process other than ours is currently sending audio to an output.

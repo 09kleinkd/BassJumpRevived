@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private let popover = NSPopover()
     private let controller = BassJumpController()
+    private lazy var calibrator = Calibrator(controller: controller)
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -25,15 +26,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.target = self
         statusItem.button?.action = #selector(togglePopover(_:))
 
-        let host = NSHostingController(rootView: MenuView(meter: controller.meterModel).environmentObject(controller))
+        let host = NSHostingController(rootView: MenuView(meter: controller.meterModel)
+            .environmentObject(controller).environmentObject(calibrator))
         host.sizingOptions = [.preferredContentSize]
         popover.contentViewController = host
         popover.behavior = .transient
         popover.animates = true
 
-        controller.$status
+        controller.$status.combineLatest(controller.$iconLevel)
             .receive(on: RunLoop.main)
-            .sink { [weak self] status in self?.updateIcon(playing: status.isPlaying) }
+            .sink { [weak self] status, level in self?.updateIcon(playing: status.isPlaying, level: level) }
             .store(in: &cancellables)
 
         // `open BassJump.app --args --show-panel` opens the panel at launch (handy for testing).
@@ -42,9 +44,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func updateIcon(playing: Bool) {
-        let image = NSImage(systemSymbolName: playing ? "hifispeaker.fill" : "hifispeaker",
+    /// Idle: speaker outline. Playing: filled speaker; with the live icon, its waves follow the bass.
+    private func updateIcon(playing: Bool, level: Int) {
+        let image: NSImage?
+        if playing && level > 0 {
+            image = NSImage(systemSymbolName: "speaker.wave.3.fill", variableValue: Double(level) / 3,
                             accessibilityDescription: "BassJump")
+        } else {
+            image = NSImage(systemSymbolName: playing ? "hifispeaker.fill" : "hifispeaker",
+                            accessibilityDescription: "BassJump")
+        }
         image?.isTemplate = true
         statusItem.button?.image = image
     }

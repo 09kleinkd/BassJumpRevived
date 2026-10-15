@@ -26,6 +26,8 @@
 	<string>14.2</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>BassJump listens through your microphone during calibration to measure how your speakers and subwoofer sound in your room.</string>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>BassJump listens to your Mac's sound output so it can send the bass to your BassJump subwoofer.</string>
 </dict>

@@ -3,6 +3,7 @@ import CoreAudio
 import Foundation
 import ServiceManagement
 import SwiftUI
+import UserNotifications
 import os
 
 private let log = Logger(subsystem: "local.bassjump.revived", category: "controller")
@@ -31,6 +32,12 @@ final class BassJumpController: ObservableObject {
     @Published var pauseForHeadphones: Bool { didSet { saveGlobal(); reconcile() } }
     @Published var subwooferUID: String { didSet { saveGlobal(); reconcile() } }   // "" = automatic
     @Published var hotKeyEnabled: Bool { didSet { saveGlobal(); updateHotKey() } }
+    @Published var skipCalls: Bool { didSet { saveGlobal(); reconcile() } }
+    @Published var ignoredApps: [String] { didSet { saveGlobal(); reconcile() } }   // bundle IDs
+    @Published var loudness: Bool { didSet { saveGlobal(); applyParameters() } }
+    @Published var stereoSubs: Bool { didSet { saveGlobal(); reconcile() } }
+    @Published var notifyOnConnect: Bool { didSet { saveGlobal() } }
+    @Published var liveIcon: Bool { didSet { saveGlobal() } }
 
     // MARK: Per-output settings (remembered for each speaker/output device)
     @Published var crossover: Double { didSet { profileChanged(applyOnly: true); updatePresetName() } }
@@ -38,6 +45,7 @@ final class BassJumpController: ObservableObject {
     @Published var alignedMode: Bool { didSet { profileChanged(applyOnly: false) } }
     @Published var highPassMain: Bool { didSet { profileChanged(applyOnly: true) } }
     @Published var alignmentMs: Double { didSet { profileChanged(applyOnly: true) } }
+    @Published var invertSub: Bool { didSet { profileChanged(applyOnly: true) } }
 
     // MARK: State
     @Published private(set) var status: Status = .off
@@ -46,6 +54,11 @@ final class BassJumpController: ObservableObject {
     @Published private(set) var outputDevices: [AudioDeviceInfo] = []
     @Published private(set) var profileOutputName: String?
     @Published private(set) var permissionProblem = false
+    /// Apps currently using audio (for the "ignore an app" menu), excluding ourselves.
+    @Published private(set) var audioApps: [AudioAppInfo] = []
+    /// 0–3, drives the animated menu bar icon.
+    @Published private(set) var iconLevel = 0
+    @Published private(set) var stereoActive = false
     /// Separate model so 20 Hz meter updates don't redraw the menu bar icon.
     let meterModel = MeterModel()
     @Published var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled {
@@ -79,7 +92,8 @@ final class BassJumpController: ObservableObject {
     init() {
         defaults.register(defaults: [
             "enabled": true, "followSystemVolume": true, "pauseForHeadphones": true,
-            "subwooferUID": "", "hotKeyEnabled": true,
+            "subwooferUID": "", "hotKeyEnabled": true, "skipCalls": true, "loudness": false,
+            "stereoSubs": true, "notifyOnConnect": true, "liveIcon": true,
             "crossover": 150.0, "level": 0.6, "alignedMode": false, "highPassMain": false, "alignmentMs": 0.0,
         ])
         enabled = defaults.bool(forKey: "enabled")
@@ -87,18 +101,26 @@ final class BassJumpController: ObservableObject {
         pauseForHeadphones = defaults.bool(forKey: "pauseForHeadphones")
         subwooferUID = defaults.string(forKey: "subwooferUID") ?? ""
         hotKeyEnabled = defaults.bool(forKey: "hotKeyEnabled")
+        skipCalls = defaults.bool(forKey: "skipCalls")
+        ignoredApps = defaults.stringArray(forKey: "ignoredApps") ?? []
+        loudness = defaults.bool(forKey: "loudness")
+        stereoSubs = defaults.bool(forKey: "stereoSubs")
+        notifyOnConnect = defaults.bool(forKey: "notifyOnConnect")
+        liveIcon = defaults.bool(forKey: "liveIcon")
         // Last-used sound settings seed any output that has no profile yet.
         crossover = defaults.double(forKey: "crossover")
         level = defaults.double(forKey: "level")
         alignedMode = defaults.bool(forKey: "alignedMode")
         highPassMain = defaults.bool(forKey: "highPassMain")
         alignmentMs = defaults.double(forKey: "alignmentMs")
+        invertSub = defaults.bool(forKey: "invertSub")
         profiles = defaults.decoded([String: OutputProfile].self, forKey: "profiles") ?? [:]
         customPresets = defaults.decoded([BassPreset].self, forKey: "customPresets") ?? []
         updatePresetName()
 
         let system = AudioObjectID(kAudioObjectSystemObject)
-        for sel in [kAudioHardwarePropertyDevices, kAudioHardwarePropertyDefaultOutputDevice] {
+        for sel in [kAudioHardwarePropertyDevices, kAudioHardwarePropertyDefaultOutputDevice,
+                    kAudioHardwarePropertyProcessObjectList] {
             if let l = PropertyListener(system, address(sel), { [weak self] in self?.scheduleReconcile() }) {
                 systemListeners.append(l)
             }
@@ -156,6 +178,11 @@ final class BassJumpController: ObservableObject {
         if meterModel.isVisible || meterModel.level != 0 { meterModel.level = meterModel.isVisible ? value : 0 }
         if running { maxPeak = max(maxPeak, value); maxInput = max(maxInput, engine.dsp.inputPeak) }
         ticks += 1
+        if ticks % 3 == 0 {   // ~7 Hz is plenty for the menu bar icon
+            let peak = running ? engine.dsp.peak : 0
+            let bucket = !liveIcon || peak < 0.02 ? 0 : (peak < 0.15 ? 1 : (peak < 0.4 ? 2 : 3))
+            if bucket != iconLevel { iconLevel = bucket }
+        }
 
         if ticks % 40 == 0 {   // every 2 s
             // Watchdog: if the audio callback stopped running, rebuild the engine.
@@ -232,7 +259,7 @@ final class BassJumpController: ObservableObject {
 
     private var currentProfile: OutputProfile {
         OutputProfile(aligned: alignedMode, crossover: crossover, level: level,
-                      highPassMain: highPassMain, alignmentMs: alignmentMs)
+                      highPassMain: highPassMain, alignmentMs: alignmentMs, invertSub: invertSub)
     }
 
     private func profileChanged(applyOnly: Bool) {
@@ -245,6 +272,7 @@ final class BassJumpController: ObservableObject {
         defaults.set(p.aligned, forKey: "alignedMode")
         defaults.set(p.highPassMain, forKey: "highPassMain")
         defaults.set(p.alignmentMs, forKey: "alignmentMs")
+        defaults.set(p.invertSub, forKey: "invertSub")
         if applyOnly { applyParameters() } else { reconcile() }
     }
 
@@ -258,7 +286,7 @@ final class BassJumpController: ObservableObject {
         defaults.encode(profiles, forKey: "profiles")
         loadingProfile = true
         crossover = p.crossover; level = p.level; alignedMode = p.aligned
-        highPassMain = p.highPassMain; alignmentMs = p.alignmentMs
+        highPassMain = p.highPassMain; alignmentMs = p.alignmentMs; invertSub = p.invertSub
         loadingProfile = false
         updatePresetName()
         log.info("Using settings for \(output.name, privacy: .public)")
@@ -281,25 +309,32 @@ final class BassJumpController: ObservableObject {
         outputDevices = AudioSystem.outputDevices()
         watchDefaultOutput()
 
+        let bassJumps = outputDevices.filter(\.looksLikeBassJump)
         let sub: AudioDeviceInfo? = subwooferUID.isEmpty
-            ? outputDevices.first(where: \.looksLikeBassJump)
+            ? bassJumps.first
             : outputDevices.first(where: { $0.uid == subwooferUID })
+        let sub2: AudioDeviceInfo? = stereoSubs ? bassJumps.first(where: { $0.id != sub?.id }) : nil
+        stereoActive = sub != nil && sub2 != nil
+        notifyConnectionChange(present: sub != nil, name: sub?.name)
         let defaultOut = AudioSystem.defaultOutputDevice()
         let main = AudioSystem.info(for: defaultOut)
         if let main, main.id != sub?.id { selectProfile(for: main) }
+        refreshAudioApps()
 
         let desired: Status
         if !enabled { desired = .off }
         else if sub == nil { desired = .noDevice }
         else if defaultOut == sub!.id { desired = .notSpeakers }   // the BassJump itself is the output
         else if pauseForHeadphones && !AudioSystem.isSpeakers(defaultOut) { desired = .notSpeakers }
-        else { desired = .playing(sub: sub!.name, main: alignedMode ? main?.name : nil) }
+        else { desired = .playing(sub: stereoActive ? "two BassJumps" : sub!.name, main: alignedMode ? main?.name : nil) }
 
         if case .playing = desired, let sub {
             let config = EngineConfig(aligned: alignedMode && main != nil, subUID: sub.uid,
                                       mainUID: alignedMode ? main?.uid : nil,
                                       fillAllChannels: defaults.bool(forKey: "fillAllChannels"),
-                                      fillCenter: defaults.bool(forKey: "fillCenter"))
+                                      fillCenter: defaults.bool(forKey: "fillCenter"),
+                                      subUID2: sub2?.uid,
+                                      excludedProcesses: excludedProcessObjects())
             if engine.config != config {
                 do {
                     try engine.start(config)
@@ -309,7 +344,7 @@ final class BassJumpController: ObservableObject {
                     return
                 }
             }
-            watchDeviceHealth(sub: sub.id, main: config.aligned ? main?.id : nil)
+            watchDeviceHealth(sub: sub.id, main: config.aligned ? main?.id : sub2?.id)
             applyParameters()
         } else {
             engine.stop()
@@ -358,18 +393,104 @@ final class BassJumpController: ObservableObject {
         }
     }
 
+    // MARK: Calibration hooks
+
+    private var calibrationOverride: (gain: Float, invert: Bool, crossover: Double?)?
+
+    func setCalibrationOverride(gain: Float, invert: Bool, crossover: Double?) {
+        calibrationOverride = (gain, invert, crossover)
+        applyParameters()
+    }
+
+    func clearCalibrationOverride() {
+        guard calibrationOverride != nil else { return }
+        calibrationOverride = nil
+        applyParameters()
+    }
+
+    func applyCalibration(crossover: Double, level: Double, invert: Bool) {
+        self.crossover = crossover
+        self.level = level
+        self.invertSub = invert
+        log.info("Applied calibration: \(crossover) Hz, level \(level), invert \(invert)")
+    }
+
     private func applyParameters() {
+        if let o = calibrationOverride {
+            engine.dsp.subGain = o.gain
+            engine.dsp.invertSub = o.invert
+            if let x = o.crossover { engine.dsp.crossoverHz = x }
+            return
+        }
         var gain = Float(level) * 2.0          // level 1.0 = +6 dB into the limiter
         if followSystemVolume {
             let out = AudioSystem.defaultOutputDevice()
             if AudioSystem.isMuted(out) { gain = 0 }
-            else if let v = AudioSystem.volume(out) { gain *= v }
+            else if let v = AudioSystem.volume(out) {
+                gain *= v
+                // Loudness: ears lose bass at low volume, so add up to +9 dB as volume falls.
+                if loudness { gain *= Float(pow(10, 9 * Double(1 - v) / 20)) }
+            }
         }
         let dsp = engine.dsp
         dsp.crossoverHz = crossover
         dsp.subGain = gain
         dsp.highPassMain = highPassMain
         dsp.alignmentMs = alignmentMs
+        dsp.invertSub = invertSub
+    }
+
+    // MARK: Per-app rules
+
+    private func isExcluded(_ bundleID: String) -> Bool {
+        guard !bundleID.isEmpty else { return false }
+        if skipCalls && CallApps.bundlePrefixes.contains(where: { bundleID.hasPrefix($0) }) { return true }
+        return ignoredApps.contains { bundleID == $0 || bundleID.hasPrefix($0 + ".") }
+    }
+
+    private func excludedProcessObjects() -> [AudioObjectID] {
+        AudioSystem.audioProcesses().filter { isExcluded($0.bundleID) }.map(\.object).sorted()
+    }
+
+    private func refreshAudioApps() {
+        var seen = Set<String>()
+        audioApps = AudioSystem.audioProcesses().compactMap { p -> AudioAppInfo? in
+            let app = NSRunningApplication(processIdentifier: p.pid)
+            let bundle = app?.bundleIdentifier ?? p.bundleID
+            guard !bundle.isEmpty, seen.insert(bundle).inserted else { return nil }
+            return AudioAppInfo(bundleID: bundle, name: app?.localizedName ?? bundle, isPlaying: p.isPlaying,
+                                isCallApp: CallApps.bundlePrefixes.contains { bundle.hasPrefix($0) })
+        }
+        .sorted { ($0.isPlaying ? 0 : 1, $0.name) < ($1.isPlaying ? 0 : 1, $1.name) }
+    }
+
+    func toggleIgnored(_ bundleID: String) {
+        if ignoredApps.contains(bundleID) { ignoredApps.removeAll { $0 == bundleID } }
+        else { ignoredApps.append(bundleID) }
+    }
+
+    func appName(for bundleID: String) -> String {
+        audioApps.first { $0.bundleID == bundleID }?.name
+            ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
+                .map { FileManager.default.displayName(atPath: $0.path).replacingOccurrences(of: ".app", with: "") }
+            ?? bundleID
+    }
+
+    // MARK: Notifications
+
+    private var lastSubPresent: Bool?
+    private func notifyConnectionChange(present: Bool, name: String?) {
+        defer { lastSubPresent = present }
+        guard let last = lastSubPresent, last != present, notifyOnConnect else { return }
+        let title = present ? "BassJump connected" : "BassJump disconnected"
+        let body = present ? "Bass is playing through \(name ?? "your BassJump")." : "Plug it back in to bring the bass back."
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = body
+            UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+        }
     }
 
     private func saveGlobal() {
@@ -378,6 +499,12 @@ final class BassJumpController: ObservableObject {
         defaults.set(pauseForHeadphones, forKey: "pauseForHeadphones")
         defaults.set(subwooferUID, forKey: "subwooferUID")
         defaults.set(hotKeyEnabled, forKey: "hotKeyEnabled")
+        defaults.set(skipCalls, forKey: "skipCalls")
+        defaults.set(ignoredApps, forKey: "ignoredApps")
+        defaults.set(loudness, forKey: "loudness")
+        defaults.set(stereoSubs, forKey: "stereoSubs")
+        defaults.set(notifyOnConnect, forKey: "notifyOnConnect")
+        defaults.set(liveIcon, forKey: "liveIcon")
     }
 }
 
@@ -385,4 +512,12 @@ final class BassJumpController: ObservableObject {
 final class MeterModel: ObservableObject {
     @Published var level: Float = 0
     var isVisible = false
+}
+
+struct AudioAppInfo: Identifiable, Hashable {
+    let bundleID: String
+    let name: String
+    let isPlaying: Bool
+    let isCallApp: Bool
+    var id: String { bundleID }
 }

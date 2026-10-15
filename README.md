@@ -4,6 +4,9 @@ A native Apple Silicon replacement for Twelve South's BassJump Sound System soft
 (last release 3.0.1, 2015, Intel-only). No driver, no kernel extension.
 
 ## For other BassJump owners
+**[⬇︎ Download the latest release](https://github.com/09kleinkd/BassJumpRevived/releases/latest)**
+(notarized by Apple; macOS 14.2+, Apple Silicon).
+
 If your BassJump stopped working after macOS Catalina or on an Apple Silicon Mac, this app
 replaces Twelve South's discontinued software. You don't need to install the old software,
 its driver or its kernel extension; if they're still installed, run Twelve South's uninstaller
@@ -113,3 +116,7 @@ See [docs/TEARDOWN.md](docs/TEARDOWN.md) for how the original software worked.
 - No graphic EQ (3.0.1 had a 10-band one). In sub-only mode the speakers bypass the app, so
   an EQ could only shape the sub.
 - The raw "BassJump Core" device still appears in Sound settings (3.0.1 hid it with a kext).
+
+## License
+MIT — see [LICENSE](LICENSE). "BassJump" is a trademark of Twelve South LLC; this project is not
+affiliated with or endorsed by Twelve South.

@@ -43,3 +43,15 @@ for id in ids {
     let vmv = has(id, addr(0x766d7663 /* 'vmvc' virtual main volume */))
     print("   stereo=\(st) mainVolume=\(vol) perChannelVolume=\(volCh) mute=\(mute) virtualMainVolume=\(vmv)")
 }
+
+// Default output volume in scalar and dB.
+var da = addr(kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal)
+var def = AudioObjectID(0); var dsz = UInt32(4)
+AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &da, 0, nil, &dsz, &def)
+var vs = addr(kAudioDevicePropertyVolumeScalar); var vd = addr(kAudioDevicePropertyVolumeDecibels)
+var scalar: Float32 = 0, db: Float32 = 0; var fsz = UInt32(4)
+AudioObjectGetPropertyData(def, &vs, 0, nil, &fsz, &scalar); fsz = 4
+AudioObjectGetPropertyData(def, &vd, 0, nil, &fsz, &db)
+var vm = addr(0x766d7663); var vmv: Float32 = 0; fsz = 4
+AudioObjectGetPropertyData(def, &vm, 0, nil, &fsz, &vmv)
+print("default output volume: scalar=\(scalar) dB=\(db) virtualMain=\(vmv)")

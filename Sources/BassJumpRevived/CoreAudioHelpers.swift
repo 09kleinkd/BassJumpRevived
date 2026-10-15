@@ -134,6 +134,22 @@ enum AudioSystem {
         return (Int(p.l) - 1, Int(p.r) - 1)
     }
 
+    /// Channel labels from the device's preferred output channel layout (kAudioChannelLabel_*),
+    /// one per channel; empty if the device doesn't describe its channels.
+    static func outputChannelLabels(_ id: AudioObjectID) -> [UInt32] {
+        var a = address(kAudioDevicePropertyPreferredChannelLayout, kAudioObjectPropertyScopeOutput)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(id, &a, 0, nil, &size) == noErr, size > 0 else { return [] }
+        let raw = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: 8)
+        defer { raw.deallocate() }
+        guard AudioObjectGetPropertyData(id, &a, 0, nil, &size, raw) == noErr else { return [] }
+        let layout = raw.assumingMemoryBound(to: AudioChannelLayout.self)
+        let count = Int(layout.pointee.mNumberChannelDescriptions)
+        guard let offset = MemoryLayout<AudioChannelLayout>.offset(of: \AudioChannelLayout.mChannelDescriptions) else { return [] }
+        let descriptions = (raw + offset).assumingMemoryBound(to: AudioChannelDescription.self)
+        return (0..<count).map { descriptions[$0].mChannelLabel }
+    }
+
     static func defaultOutputDevice() -> AudioObjectID {
         (try? CA.get(AudioObjectID(kAudioObjectSystemObject),
                      address(kAudioHardwarePropertyDefaultOutputDevice), AudioObjectID(kAudioObjectUnknown)))

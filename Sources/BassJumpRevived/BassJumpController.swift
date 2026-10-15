@@ -193,7 +193,9 @@ final class BassJumpController: ObservableObject {
 
         if case .playing = desired, let sub {
             let config = EngineConfig(aligned: alignedMode && main != nil, subUID: sub.uid,
-                                      mainUID: alignedMode ? main?.uid : nil)
+                                      mainUID: alignedMode ? main?.uid : nil,
+                                      fillAllChannels: defaults.bool(forKey: "fillAllChannels"),
+                                      fillCenter: defaults.bool(forKey: "fillCenter"))
             if engine.config != config {
                 do {
                     try engine.start(config)

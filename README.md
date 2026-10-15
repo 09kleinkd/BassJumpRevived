@@ -55,5 +55,11 @@ See [docs/TEARDOWN.md](docs/TEARDOWN.md) for how the original software worked.
 ## Known limitations / ideas
 - In sub-only mode the sub plays slightly later (~10–20 ms) than the speakers; use
   time-aligned mode if that bothers you.
+- **Time-aligned mode on Apple Studio Displays plays ~10 dB quieter.** Measured with the
+  display's mic (`tools/measure`): writing directly to the display's 8-channel stream is a
+  flat 9.6 dB quieter than normal macOS stereo playback at every volume, with identical tone.
+  Spreading stereo across all channels (`defaults write local.bassjump.revived fillAllChannels
+  -bool YES`) matches loudness but colours the sound by ±7 dB, so it's off by default. Use
+  sub-only mode with the Studio Display; time-aligned mode is meant for MacBook speakers.
 - No graphic EQ yet (3.0.1 had a 10-band one).
 - The raw "BassJump Core" device still appears in Sound settings (3.0.1 hid it with a kext).

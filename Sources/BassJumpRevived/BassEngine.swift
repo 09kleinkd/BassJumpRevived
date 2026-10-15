@@ -10,6 +10,11 @@ struct EngineConfig: Equatable {
     var subUID: String
     /// Main speakers (aligned mode only).
     var mainUID: String?
+    /// Aligned mode: spread stereo across every speaker channel the device describes
+    /// (L/R/C/LFE/surrounds/heights) instead of only its stereo pair.
+    var fillAllChannels = false
+    /// When filling, also feed centre/LFE channels with (L+R)/2.
+    var fillCenter = false
 }
 
 /// Captures the system mix with a Core Audio process tap and plays it through a private
@@ -36,7 +41,7 @@ final class BassEngine {
     private let outSub = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
     private let outL = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
     private let outR = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
-    /// Role of each aggregate output channel: 0 silent, 1 main L, 2 main R, 3 sub.
+    /// Role of each aggregate output channel: 0 silent, 1 main L, 2 main R, 3 sub, 4 main mid (L+R)/2.
     private let roles = UnsafeMutablePointer<UInt8>.allocate(capacity: maxChannels)
     private var roleCount = 0
     /// Number of aggregate input channels that belong to subdevices (the tap follows them).
@@ -68,10 +73,10 @@ final class BassEngine {
             }
             try createTap(muted: config.aligned)
             try createAggregate(config)
-            mapChannels(main: main, sub: sub)
+            mapChannels(main: main, sub: sub, fillAll: config.fillAllChannels, fillCenter: config.fillCenter)
             try startIO()
             self.config = config
-            log.info("Engine started: \(config.aligned ? "aligned" : "sub-only", privacy: .public), sub=\(sub.name, privacy: .public), main=\(main?.name ?? "-", privacy: .public), \(self.dsp.sampleRate) Hz, tap input at ch \(self.tapFirstChannel)")
+            log.info("Engine started: \(config.aligned ? "aligned" : "sub-only", privacy: .public), sub=\(sub.name, privacy: .public), main=\(main?.name ?? "-", privacy: .public), \(self.dsp.sampleRate) Hz, tap input at ch \(self.tapFirstChannel), roles \((0..<self.roleCount).map { String(self.roles[$0]) }.joined(), privacy: .public)")
         } catch {
             log.error("Engine start failed: \(String(describing: error), privacy: .public)")
             stop()
@@ -146,14 +151,18 @@ final class BassEngine {
 
     /// Aggregate output channels are the subdevices' channels in list order (main first).
     /// Aggregate inputs are the subdevices' inputs, followed by the tap's stereo pair.
-    private func mapChannels(main: AudioDeviceInfo?, sub: AudioDeviceInfo) {
+    private func mapChannels(main: AudioDeviceInfo?, sub: AudioDeviceInfo, fillAll: Bool, fillCenter: Bool) {
         roles.update(repeating: 0, count: Self.maxChannels)
         var index = 0
         var subInputs = AudioSystem.inputChannelCount(sub.id)
         if let main {
             let pair = AudioSystem.preferredStereo(main.id)
+            let labels = fillAll ? AudioSystem.outputChannelLabels(main.id) : []
             for c in 0..<main.outputChannels where index + c < Self.maxChannels {
-                roles[index + c] = c == pair.left ? 1 : (c == pair.right ? 2 : 0)
+                var role: UInt8 = c == pair.left ? 1 : (c == pair.right ? 2 : 0)
+                if role == 0, c < labels.count { role = Self.role(forLabel: labels[c]) }
+                if role == 4 && !fillCenter { role = 0 }
+                roles[index + c] = role
             }
             index += main.outputChannels
             subInputs += AudioSystem.inputChannelCount(main.id)
@@ -163,12 +172,33 @@ final class BassEngine {
         tapFirstChannel = subInputs
     }
 
+    /// Left-side labels get L, right-side get R, centre/LFE get the mid signal.
+    private static func role(forLabel label: UInt32) -> UInt8 {
+        switch label {
+        case kAudioChannelLabel_Left, kAudioChannelLabel_LeftSurround, kAudioChannelLabel_LeftCenter,
+             kAudioChannelLabel_RearSurroundLeft, kAudioChannelLabel_LeftWide, kAudioChannelLabel_LeftSurroundDirect,
+             kAudioChannelLabel_VerticalHeightLeft, kAudioChannelLabel_TopBackLeft, kAudioChannelLabel_LeftTopFront,
+             kAudioChannelLabel_LeftTopMiddle, kAudioChannelLabel_LeftTopRear:
+            return 1
+        case kAudioChannelLabel_Right, kAudioChannelLabel_RightSurround, kAudioChannelLabel_RightCenter,
+             kAudioChannelLabel_RearSurroundRight, kAudioChannelLabel_RightWide, kAudioChannelLabel_RightSurroundDirect,
+             kAudioChannelLabel_VerticalHeightRight, kAudioChannelLabel_TopBackRight, kAudioChannelLabel_RightTopFront,
+             kAudioChannelLabel_RightTopMiddle, kAudioChannelLabel_RightTopRear:
+            return 2
+        case kAudioChannelLabel_Center, kAudioChannelLabel_LFEScreen, kAudioChannelLabel_LFE2,
+             kAudioChannelLabel_CenterSurround, kAudioChannelLabel_VerticalHeightCenter, kAudioChannelLabel_TopCenterSurround:
+            return 4
+        default:
+            return 0
+        }
+    }
+
     private func startIO() throws {
         let dsp = self.dsp
         let (inL, inR, outSub, outL, outR, roles) = (self.inL, self.inR, self.outSub, self.outL, self.outR, self.roles)
         let roleCount = self.roleCount
         let tapFirst = self.tapFirstChannel
-        let aligned = roleCount > 0 && (0..<roleCount).contains { roles[$0] == 1 }
+        let aligned = roleCount > 0 && (0..<roleCount).contains { roles[$0] == 1 || roles[$0] == 2 || roles[$0] == 4 }
         let maxFrames = Self.maxFrames
 
         var procID: AudioDeviceIOProcID?
@@ -219,6 +249,7 @@ final class BassEngine {
                     case 1: for f in 0..<n { data[f * ch + c] = outL[f] }
                     case 2: for f in 0..<n { data[f * ch + c] = outR[f] }
                     case 3: for f in 0..<n { data[f * ch + c] = outSub[f] }
+                    case 4: for f in 0..<n { data[f * ch + c] = (outL[f] + outR[f]) * 0.5 }
                     default: for f in 0..<n { data[f * ch + c] = 0 }
                     }
                 }

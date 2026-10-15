@@ -133,15 +133,19 @@ final class BassEngine {
         let clockUID: String
         if config.aligned, let mainUID = config.mainUID {
             clockUID = mainUID
-            subdevices.append([kAudioSubDeviceUIDKey: mainUID])
-            subdevices.append([kAudioSubDeviceUIDKey: config.subUID, kAudioSubDeviceDriftCompensationKey: true])
+            subdevices.append([kAudioSubDeviceUIDKey: mainUID, kAudioSubDeviceInputChannelsKey: 0])
+            subdevices.append([kAudioSubDeviceUIDKey: config.subUID, kAudioSubDeviceDriftCompensationKey: true,
+                               kAudioSubDeviceInputChannelsKey: 0])
         } else {
             clockUID = config.subUID
-            subdevices.append([kAudioSubDeviceUIDKey: config.subUID])
+            subdevices.append([kAudioSubDeviceUIDKey: config.subUID, kAudioSubDeviceInputChannelsKey: 0])
         }
         if let second = config.subUID2 {
-            subdevices.append([kAudioSubDeviceUIDKey: second, kAudioSubDeviceDriftCompensationKey: true])
+            subdevices.append([kAudioSubDeviceUIDKey: second, kAudioSubDeviceDriftCompensationKey: true,
+                               kAudioSubDeviceInputChannelsKey: 0])
         }
+        // (Zero input channels per subdevice: the BassJump and displays have microphones, and
+        // including them would make macOS ask for microphone access just to run the engine.)
         let description: [String: Any] = [
             kAudioAggregateDeviceNameKey: "BassJump Crossover",
             kAudioAggregateDeviceUIDKey: "local.bassjump.aggregate.\(UUID().uuidString)",
@@ -189,7 +193,9 @@ final class BassEngine {
             subInputs += AudioSystem.inputChannelCount(sub2.id)
         }
         roleCount = min(index, Self.maxChannels)
-        tapFirstChannel = subInputs
+        // The tap's stereo pair is the last two input channels, whatever the subdevices expose.
+        let totalInputs = AudioSystem.inputChannelCount(aggregateID)
+        tapFirstChannel = totalInputs >= 2 ? totalInputs - 2 : subInputs
     }
 
     /// Left-side labels get L, right-side get R, centre/LFE get the mid signal.
@@ -211,6 +217,42 @@ final class BassEngine {
         default:
             return 0
         }
+    }
+
+    /// The aggregate's inputs include the subdevices' own inputs (the BassJump has a mic-style
+    /// input channel). Switch every input stream off except the tap's, so the app never opens a
+    /// real input device — otherwise macOS treats starting the engine as microphone use.
+    private func useOnlyTapInput(_ procID: AudioDeviceIOProcID) {
+        // Channel layout of the aggregate's input streams, to find where the tap starts.
+        var cfg = address(kAudioDevicePropertyStreamConfiguration, kAudioObjectPropertyScopeInput)
+        var cfgSize: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(aggregateID, &cfg, 0, nil, &cfgSize) == noErr, cfgSize > 0 else { return }
+        let cfgRaw = UnsafeMutableRawPointer.allocate(byteCount: Int(cfgSize), alignment: 16)
+        defer { cfgRaw.deallocate() }
+        guard AudioObjectGetPropertyData(aggregateID, &cfg, 0, nil, &cfgSize, cfgRaw) == noErr else { return }
+        let streams = UnsafeMutableAudioBufferListPointer(cfgRaw.assumingMemoryBound(to: AudioBufferList.self))
+            .map { Int($0.mNumberChannels) }
+
+        var addr = address(kAudioDevicePropertyIOProcStreamUsage, kAudioObjectPropertyScopeInput)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(aggregateID, &addr, 0, nil, &size) == noErr,
+              size >= UInt32(MemoryLayout<AudioHardwareIOProcStreamUsage>.size) else { return }
+        let raw = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: 16)
+        defer { raw.deallocate() }
+        let usage = raw.bindMemory(to: AudioHardwareIOProcStreamUsage.self, capacity: 1)
+        usage.pointee.mIOProc = unsafeBitCast(procID, to: UnsafeMutableRawPointer.self)
+        guard AudioObjectGetPropertyData(aggregateID, &addr, 0, nil, &size, raw) == noErr else { return }
+        let count = Int(usage.pointee.mNumberStreams)
+        guard count == streams.count, count > 1 else { return }
+        let flags = (raw + MemoryLayout<AudioHardwareIOProcStreamUsage>.offset(of: \.mStreamIsOn)!)
+            .assumingMemoryBound(to: UInt32.self)
+        var channel = 0
+        for i in 0..<count {
+            flags[i] = channel >= tapFirstChannel ? 1 : 0
+            channel += streams[i]
+        }
+        let st = AudioObjectSetPropertyData(aggregateID, &addr, 0, nil, size, raw)
+        log.info("Input streams in use: \((0..<count).map { String(flags[$0]) }.joined(), privacy: .public) (status \(st))")
     }
 
     private func startIO() throws {
@@ -281,6 +323,7 @@ final class BassEngine {
         }
         try check(status, "AudioDeviceCreateIOProcIDWithBlock")
         ioProcID = procID
+        if let procID { useOnlyTapInput(procID) }
         try check(AudioDeviceStart(aggregateID, procID), "AudioDeviceStart")
     }
 }

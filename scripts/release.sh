@@ -21,12 +21,16 @@ xcodegen generate --quiet
 xcodebuild -project BassJump.xcodeproj -scheme BassJump -configuration Release \
   -derivedDataPath build/DD-release \
   CODE_SIGN_IDENTITY="$IDENTITY" ENABLE_HARDENED_RUNTIME=YES OTHER_CODE_SIGN_FLAGS="--timestamp" \
-  CODE_SIGN_ENTITLEMENTS="Resources/BassJump-Release.entitlements" -quiet build
+  CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO -quiet build
 
 APP=build/release/BassJump.app
 rm -rf build/release && mkdir -p build/release
 cp -R build/DD-release/Build/Products/Release/BassJump.app "$APP"
 codesign --verify --deep --strict "$APP"
+# Notarization rejects debug entitlements; make sure none slipped in.
+if codesign -d --entitlements - "$APP" "$APP/Contents/PlugIns/BassJumpControls.appex" 2>/dev/null | grep -q get-task-allow; then
+  echo "get-task-allow present — refusing to submit"; exit 1
+fi
 
 VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")
 ZIP="build/BassJump-$VERSION.zip"

@@ -9,13 +9,17 @@ cd "$(dirname "$0")"
 command -v xcodegen >/dev/null || { echo "Install XcodeGen first: brew install xcodegen"; exit 1; }
 xcodegen generate --quiet
 
-# First valid Apple Development identity for the project's team (KSQ Studios, BWZWZZ6FB7).
+# Prefer the team's Developer ID (same signature as public releases, so macOS keeps the
+# audio permissions across local rebuilds); fall back to Apple Development.
 IDENTITY="${SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null \
+  | grep 'Developer ID Application' | grep 'BWZWZZ6FB7' | head -1 | awk '{print $2}')}"
+IDENTITY="${IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null \
   | grep 'Apple Development' | grep -v REVOKED | grep 'ZSV7558J3F' | head -1 | awk '{print $2}')}"
 [ -n "$IDENTITY" ] || { echo "No Apple Development signing identity found"; exit 1; }
 
 xcodebuild -project BassJump.xcodeproj -scheme BassJump -configuration Release \
-  -derivedDataPath build/DD CODE_SIGN_IDENTITY="$IDENTITY" -quiet build
+  -derivedDataPath build/DD CODE_SIGN_IDENTITY="$IDENTITY" ENABLE_HARDENED_RUNTIME=YES \
+  CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO -quiet build
 rm -rf build/BassJump.app
 cp -R build/DD/Build/Products/Release/BassJump.app build/BassJump.app
 echo "Built build/BassJump.app (signed: $IDENTITY)"

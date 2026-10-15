@@ -4,31 +4,31 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>BassJump</string>
 	<key>CFBundleExecutable</key>
 	<string>BassJump</string>
-	<key>CFBundleIconName</key>
-	<string>AppIcon</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>local.bassjump.revived</string>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleName</key>
-	<string>BassJump</string>
-	<key>CFBundleDisplayName</key>
 	<string>BassJump</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>5.0</string>
+	<string>5.0.1</string>
 	<key>CFBundleVersion</key>
-	<string>5</string>
+	<string>6</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.2</string>
 	<key>LSUIElement</key>
 	<true/>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>BassJump listens through your microphone during calibration to measure how your speakers and subwoofer sound in your room.</string>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>BassJump listens to your Mac's sound output so it can send the bass to your BassJump subwoofer.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>BassJump listens through your microphone during calibration to measure how your speakers and subwoofer sound in your room.</string>
 </dict>
 </plist>

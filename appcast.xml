@@ -6,12 +6,12 @@
     <language>en</language>
     <item>
       <title>BassJump Revived 5.2</title>
-      <pubDate>Thu, 15 Oct 2026 16:02:37 -0400</pubDate>
-      <sparkle:version>9</sparkle:version>
+      <pubDate>Thu, 15 Oct 2026 16:18:33 -0400</pubDate>
+      <sparkle:version>10</sparkle:version>
       <sparkle:shortVersionString>5.2</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
       <sparkle:releaseNotesLink>https://github.com/09kleinkd/BassJumpRevived/releases/tag/v5.2</sparkle:releaseNotesLink>
-      <enclosure url="https://github.com/09kleinkd/BassJumpRevived/releases/download/v5.2/BassJump-5.2.zip" length="3818442" type="application/octet-stream" sparkle:edSignature="4Bq5FIYQl5CZ88cPLOMeNMvjw+WjHWM0O8/F0CM2mWbw/wdXluTsFKCTQiDtQreOWixHgs6Dd8/QWyMpWNTPCw=="/>
+      <enclosure url="https://github.com/09kleinkd/BassJumpRevived/releases/download/v5.2/BassJump-5.2.zip" length="3810811" type="application/octet-stream" sparkle:edSignature="jD+/q1no1aYxnLLVajm1NWpg1Fv+s+FYDWBt+PoLjWj2VQBj+Yx3zzGEHyWrpoNK1sTrgyQ7WHHPsfrr3nJ0Cg=="/>
     </item>
     <item>
       <title>BassJump Revived 5.1</title>

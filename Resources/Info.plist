@@ -21,24 +21,24 @@
 	<key>CFBundleShortVersionString</key>
 	<string>5.2</string>
 	<key>CFBundleVersion</key>
-	<string>9</string>
+	<string>10</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.2</string>
 	<key>LSUIElement</key>
 	<true/>
-	<key>SUFeedURL</key>
-	<string>https://raw.githubusercontent.com/09kleinkd/BassJumpRevived/main/appcast.xml</string>
-	<key>SUPublicEDKey</key>
-	<string>HTvOP3WNWyx0WNQZAQHmNO187NbjFlu96vKTYlrOFzk=</string>
-	<key>SUEnableAutomaticChecks</key>
-	<true/>
-	<key>SUScheduledCheckInterval</key>
-	<integer>86400</integer>
-	<key>SUEnableInstallerLauncherService</key>
-	<false/>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>BassJump listens to your Mac's sound output so it can send the bass to your BassJump subwoofer.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>BassJump listens through your microphone during calibration to measure how your speakers and subwoofer sound in your room.</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUEnableInstallerLauncherService</key>
+	<false/>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/09kleinkd/BassJumpRevived/main/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>HTvOP3WNWyx0WNQZAQHmNO187NbjFlu96vKTYlrOFzk=</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 </dict>
 </plist>

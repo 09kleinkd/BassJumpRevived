@@ -3,6 +3,16 @@
 A native Apple Silicon replacement for Twelve South's BassJump Sound System software
 (last release 3.0.1, 2015, Intel-only). No driver, no kernel extension.
 
+## For other BassJump owners
+If your BassJump stopped working after macOS Catalina or on an Apple Silicon Mac, this app
+replaces Twelve South's discontinued software. You don't need to install the old software,
+its driver or its kernel extension; if they're still installed, run Twelve South's uninstaller
+first. Download the latest release, move **BassJump.app** to Applications, open it, and allow
+system audio recording when asked.
+
+> BassJump Revived is an independent project. It is not affiliated with, endorsed by, or
+> supported by Twelve South. "BassJump" is a trademark of Twelve South LLC.
+
 ## How it works
 - The BassJump is a standard USB audio device (C-Media, VID 0x0D8C / PID 0x013A); macOS
   drives it natively as "BassJump Core".
@@ -62,6 +72,11 @@ permission across rebuilds; ad-hoc builds ask again each time.
 On first run macOS asks for permission to record system audio — allow it
 (System Settings → Privacy & Security → Screen & System Audio Recording → "System Audio Recording Only").
 Because the app is ad-hoc signed, rebuilding may re-trigger that prompt.
+
+## Releasing (notarized build)
+`scripts/release.sh` builds with the hardened runtime, signs with the team's
+**Developer ID Application** certificate, notarizes with Apple and staples the ticket. The
+script's header lists the one-time setup (certificate + `notarytool` keychain profile).
 
 ## Tests
 ```

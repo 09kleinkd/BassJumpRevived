@@ -10,6 +10,9 @@ private let log = Logger(subsystem: "local.bassjump.revived", category: "control
 
 @MainActor
 final class BassJumpController: ObservableObject {
+    /// The live controller, for Shortcuts actions.
+    private(set) static weak var shared: BassJumpController?
+
     enum Status: Equatable {
         case off, playing(sub: String, main: String?), noDevice, notSpeakers, error(String)
 
@@ -27,7 +30,7 @@ final class BassJumpController: ObservableObject {
     }
 
     // MARK: Global settings (persisted)
-    @Published var enabled: Bool { didSet { saveGlobal(); reconcile() } }
+    @Published var enabled: Bool { didSet { saveGlobal(); reconcile(); ControlBridge.stateChanged() } }
     @Published var followSystemVolume: Bool { didSet { saveGlobal(); applyParameters() } }
     @Published var pauseForHeadphones: Bool { didSet { saveGlobal(); reconcile() } }
     @Published var subwooferUID: String { didSet { saveGlobal(); reconcile() } }   // "" = automatic
@@ -147,6 +150,8 @@ final class BassJumpController: ObservableObject {
             Task { @MainActor in self?.tick() }
         }
         updateHotKey()
+        Self.shared = self
+        ControlBridge.listen { [weak self] on in self?.enabled = on }
         reconcile()
     }
 

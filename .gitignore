@@ -2,3 +2,5 @@
 build/
 .swiftpm/
 .DS_Store
+BassJump.xcodeproj/xcuserdata/
+BassJump.xcodeproj/project.xcworkspace/xcuserdata/

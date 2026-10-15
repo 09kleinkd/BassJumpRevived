@@ -1,0 +1,500 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1D71516DCF713DB263E41BFD /* BassJumpController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3806399BA494F7C2F1B4822C /* BassJumpController.swift */; };
+		22A083D16AB635E54338609B /* CoreAudioHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5565ADB1E3D63A80A1447CEB /* CoreAudioHelpers.swift */; };
+		39112CAF2A1D3E1A2453DE9D /* BassJumpApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46683642DD4E305AB332E5F5 /* BassJumpApp.swift */; };
+		3A29C307EC5EF072E25704E7 /* Presets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C44E0864B11B1A46042910E /* Presets.swift */; };
+		54517D4F2A458542A9834C31 /* Intents.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC511956A62786747943706E /* Intents.swift */; };
+		648241A31F6E16CB645C2DC7 /* Calibrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB91CA256AC5107556FCAF5C /* Calibrator.swift */; };
+		6BAAE22EF4A524166D5938D1 /* BassJumpControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = F43C21455838A403E1BC8D9C /* BassJumpControls.swift */; };
+		90E1F02BBABD15D8AD8973D3 /* BassJumpControls.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1933B10ECFF98009234F3C0E /* BassJumpControls.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		97D9C7FEB9887D4D1EFB9873 /* HotKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54E12816C322C4708D9A83A0 /* HotKey.swift */; };
+		A4C192AD88FFE383F4FC7EB9 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 0B5F64C51A92DEF43CA23330 /* AppIcon.icon */; };
+		AC562CA5712E79A3A735A6CE /* BassEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2EB84D02775FE482FEEF164 /* BassEngine.swift */; };
+		CD6058BA343642A490C32474 /* BassDSP.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC6F3D0914FCBE15558D62A4 /* BassDSP.swift */; };
+		E9B9D55D9C77AB3B2A172E96 /* ControlBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4AA7AE87EBCFB2FE69E1985 /* ControlBridge.swift */; };
+		F056FBECC6A5E283B7131BDC /* MenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F2590651B9DD096D290A582 /* MenuView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		883FDE0BCE7587C49C52D644 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 32D9AF27C7D4907FD337903C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B70002AE933C60917249A1BE;
+			remoteInfo = BassJumpControls;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		432FEF4755A9E42F2961A919 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				90E1F02BBABD15D8AD8973D3 /* BassJumpControls.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		0B5F64C51A92DEF43CA23330 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
+		1933B10ECFF98009234F3C0E /* BassJumpControls.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BassJumpControls.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		3806399BA494F7C2F1B4822C /* BassJumpController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BassJumpController.swift; sourceTree = "<group>"; };
+		3C44E0864B11B1A46042910E /* Presets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Presets.swift; sourceTree = "<group>"; };
+		46683642DD4E305AB332E5F5 /* BassJumpApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BassJumpApp.swift; sourceTree = "<group>"; };
+		54E12816C322C4708D9A83A0 /* HotKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKey.swift; sourceTree = "<group>"; };
+		5565ADB1E3D63A80A1447CEB /* CoreAudioHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreAudioHelpers.swift; sourceTree = "<group>"; };
+		7F2590651B9DD096D290A582 /* MenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuView.swift; sourceTree = "<group>"; };
+		A0ACA1F4D58507A02AF6C268 /* BassJump.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BassJump.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B4AA7AE87EBCFB2FE69E1985 /* ControlBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlBridge.swift; sourceTree = "<group>"; };
+		E2EB84D02775FE482FEEF164 /* BassEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BassEngine.swift; sourceTree = "<group>"; };
+		EB91CA256AC5107556FCAF5C /* Calibrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Calibrator.swift; sourceTree = "<group>"; };
+		EC511956A62786747943706E /* Intents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Intents.swift; sourceTree = "<group>"; };
+		F43C21455838A403E1BC8D9C /* BassJumpControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BassJumpControls.swift; sourceTree = "<group>"; };
+		FC6F3D0914FCBE15558D62A4 /* BassDSP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BassDSP.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		0611FA0E255C3757F11FDD6F /* BassJumpRevived */ = {
+			isa = PBXGroup;
+			children = (
+				FC6F3D0914FCBE15558D62A4 /* BassDSP.swift */,
+				E2EB84D02775FE482FEEF164 /* BassEngine.swift */,
+				46683642DD4E305AB332E5F5 /* BassJumpApp.swift */,
+				3806399BA494F7C2F1B4822C /* BassJumpController.swift */,
+				EB91CA256AC5107556FCAF5C /* Calibrator.swift */,
+				B4AA7AE87EBCFB2FE69E1985 /* ControlBridge.swift */,
+				5565ADB1E3D63A80A1447CEB /* CoreAudioHelpers.swift */,
+				54E12816C322C4708D9A83A0 /* HotKey.swift */,
+				EC511956A62786747943706E /* Intents.swift */,
+				7F2590651B9DD096D290A582 /* MenuView.swift */,
+				3C44E0864B11B1A46042910E /* Presets.swift */,
+			);
+			path = BassJumpRevived;
+			sourceTree = "<group>";
+		};
+		58DCFD8037EAEEF87F455F51 /* BassJumpControls */ = {
+			isa = PBXGroup;
+			children = (
+				F43C21455838A403E1BC8D9C /* BassJumpControls.swift */,
+			);
+			path = BassJumpControls;
+			sourceTree = "<group>";
+		};
+		6E54398D2FFA6E4B335B63A4 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				0B5F64C51A92DEF43CA23330 /* AppIcon.icon */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		A2D94E3BB0C6C5BC0141456E /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				0611FA0E255C3757F11FDD6F /* BassJumpRevived */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		A98450DADDC98DB59E4B3AE9 = {
+			isa = PBXGroup;
+			children = (
+				B9B6D141DAE987F0127B0A24 /* Extensions */,
+				6E54398D2FFA6E4B335B63A4 /* Resources */,
+				A2D94E3BB0C6C5BC0141456E /* Sources */,
+				D0C354E884B99F596EDC8997 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		B9B6D141DAE987F0127B0A24 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				58DCFD8037EAEEF87F455F51 /* BassJumpControls */,
+			);
+			path = Extensions;
+			sourceTree = "<group>";
+		};
+		D0C354E884B99F596EDC8997 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A0ACA1F4D58507A02AF6C268 /* BassJump.app */,
+				1933B10ECFF98009234F3C0E /* BassJumpControls.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		86120C59EF299014A09A9C1F /* BassJump */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AB1EEA7F1C8D46C500FCB00D /* Build configuration list for PBXNativeTarget "BassJump" */;
+			buildPhases = (
+				3CAF34C1C0F3DF4D794396A5 /* Sources */,
+				366D00831E6C8DB8DB2785B2 /* Resources */,
+				432FEF4755A9E42F2961A919 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				64D0000190D2B4743C4497F9 /* PBXTargetDependency */,
+			);
+			name = BassJump;
+			packageProductDependencies = (
+			);
+			productName = BassJump;
+			productReference = A0ACA1F4D58507A02AF6C268 /* BassJump.app */;
+			productType = "com.apple.product-type.application";
+		};
+		B70002AE933C60917249A1BE /* BassJumpControls */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5CF4ED4A6757297E34794CF4 /* Build configuration list for PBXNativeTarget "BassJumpControls" */;
+			buildPhases = (
+				CAE6B5ED470685E61B0FFB25 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BassJumpControls;
+			packageProductDependencies = (
+			);
+			productName = BassJumpControls;
+			productReference = 1933B10ECFF98009234F3C0E /* BassJumpControls.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		32D9AF27C7D4907FD337903C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					86120C59EF299014A09A9C1F = {
+						DevelopmentTeam = BWZWZZ6FB7;
+						ProvisioningStyle = Manual;
+					};
+					B70002AE933C60917249A1BE = {
+						DevelopmentTeam = BWZWZZ6FB7;
+						ProvisioningStyle = Manual;
+					};
+				};
+			};
+			buildConfigurationList = 2BFC82CE0028A4AFD454945D /* Build configuration list for PBXProject "BassJump" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = A98450DADDC98DB59E4B3AE9;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = D0C354E884B99F596EDC8997 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				86120C59EF299014A09A9C1F /* BassJump */,
+				B70002AE933C60917249A1BE /* BassJumpControls */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		366D00831E6C8DB8DB2785B2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A4C192AD88FFE383F4FC7EB9 /* AppIcon.icon in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		3CAF34C1C0F3DF4D794396A5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CD6058BA343642A490C32474 /* BassDSP.swift in Sources */,
+				AC562CA5712E79A3A735A6CE /* BassEngine.swift in Sources */,
+				39112CAF2A1D3E1A2453DE9D /* BassJumpApp.swift in Sources */,
+				1D71516DCF713DB263E41BFD /* BassJumpController.swift in Sources */,
+				648241A31F6E16CB645C2DC7 /* Calibrator.swift in Sources */,
+				E9B9D55D9C77AB3B2A172E96 /* ControlBridge.swift in Sources */,
+				22A083D16AB635E54338609B /* CoreAudioHelpers.swift in Sources */,
+				97D9C7FEB9887D4D1EFB9873 /* HotKey.swift in Sources */,
+				54517D4F2A458542A9834C31 /* Intents.swift in Sources */,
+				F056FBECC6A5E283B7131BDC /* MenuView.swift in Sources */,
+				3A29C307EC5EF072E25704E7 /* Presets.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CAE6B5ED470685E61B0FFB25 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6BAAE22EF4A524166D5938D1 /* BassJumpControls.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		64D0000190D2B4743C4497F9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B70002AE933C60917249A1BE /* BassJumpControls */;
+			targetProxy = 883FDE0BCE7587C49C52D644 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		11E8E8EE52884E2DBD37342A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = local.bassjump.revived;
+				PRODUCT_NAME = BassJump;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		1A91291E8137F25404A29038 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Manual;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 5;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = BWZWZZ6FB7;
+				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.2;
+				MARKETING_VERSION = 5.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		3040B0CF92E3789A5DC2E815 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Manual;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 5;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = BWZWZZ6FB7;
+				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.2;
+				MARKETING_VERSION = 5.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		7BB7C2FCCE41342DDF9DBBDD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Extensions/BassJumpControls/BassJumpControls.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Extensions/BassJumpControls/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = local.bassjump.revived.controls;
+				PRODUCT_NAME = BassJumpControls;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		AFB1806A1FC228D47BCBF8F9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Extensions/BassJumpControls/BassJumpControls.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Extensions/BassJumpControls/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = local.bassjump.revived.controls;
+				PRODUCT_NAME = BassJumpControls;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		DD36022F42A1FF1805E25B33 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = local.bassjump.revived;
+				PRODUCT_NAME = BassJump;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		2BFC82CE0028A4AFD454945D /* Build configuration list for PBXProject "BassJump" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1A91291E8137F25404A29038 /* Debug */,
+				3040B0CF92E3789A5DC2E815 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		5CF4ED4A6757297E34794CF4 /* Build configuration list for PBXNativeTarget "BassJumpControls" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7BB7C2FCCE41342DDF9DBBDD /* Debug */,
+				AFB1806A1FC228D47BCBF8F9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AB1EEA7F1C8D46C500FCB00D /* Build configuration list for PBXNativeTarget "BassJump" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				11E8E8EE52884E2DBD37342A /* Debug */,
+				DD36022F42A1FF1805E25B33 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 32D9AF27C7D4907FD337903C /* Project object */;
+}

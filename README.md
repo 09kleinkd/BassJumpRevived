@@ -24,6 +24,21 @@ A native Apple Silicon replacement for Twelve South's BassJump Sound System soft
   (e.g. MacBook speakers vs. a Studio Display) and switch automatically with the output.
 - **Custom presets:** set crossover/level, press **+** next to the preset menu and name it.
 - **Shortcut ⌃⌥⌘B** turns BassJump on/off from anywhere (no Accessibility permission needed).
+- **Per-app rules:** calls (Zoom, Teams, FaceTime, Webex, Slack, Discord…) are skipped by
+  default, and any app can be excluded from the Apps card. Excluded apps are simply left out
+  of the tap.
+- **Loudness:** adds up to +9 dB of sub as the system volume falls.
+- **Flip sub phase** (per output), **two-BassJump stereo** (left/right bass to each).
+- **Calibrate:** plays pink noise (via `afplay`, since BassJump excludes its own audio from the
+  tap) and listens with the microphone: speakers alone → their bass roll-off sets the crossover;
+  sub on, normal vs. flipped → phase; then solves the level that fills the bass up to the
+  speakers' midrange.
+- **Shortcuts:** Turn BassJump On or Off, Toggle BassJump, Set BassJump Preset, Set BassJump
+  Level (App Intents, run in the menu bar app).
+- **Control Center** (macOS 26+): add the BassJump control via Control Center → Edit Controls.
+  It's a sandboxed widget extension that reads the app's `enabled` preference and asks the app
+  to change it via Darwin notifications (`notifyutil -p local.bassjump.revived.control.on|off`).
+- Connect/disconnect notifications; menu bar icon follows the bass level.
 - **Permission check:** if other apps are playing but the tap hears only silence for ~10 s,
   the menu shows a warning with a button to the Privacy settings.
 - Presets from 3.0.1: Default 150 Hz / 60 %, Pop 200/75, Rock 175/80, R&B 150/100, Classical 175/50.
@@ -33,14 +48,16 @@ A native Apple Silicon replacement for Twelve South's BassJump Sound System soft
 and rebuild; `build.sh` compiles it with `actool` into `Assets.car` plus an `.icns` fallback.
 
 ## Build & install
-Requires Xcode (or Command Line Tools) and macOS 14.2+.
+Requires Xcode and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`); runs on macOS 14.2+
+(Control Center control needs macOS 26+). `project.yml` defines the Xcode project; `build.sh`
+regenerates it, builds with `xcodebuild`, and embeds the Control Center extension.
 
 ```
 ./build.sh             # → build/BassJump.app
 ./build.sh --install   # also copies to /Applications and relaunches
 ```
-`build.sh` signs with your first valid "Apple Development" certificate (override with
-`SIGN_IDENTITY=…`), falling back to ad-hoc. A stable signature keeps the audio-recording
+`build.sh` signs with the KSQ Studios "Apple Development" certificate (override with
+`SIGN_IDENTITY=…`). A stable signature keeps the audio-recording
 permission across rebuilds; ad-hoc builds ask again each time.
 On first run macOS asks for permission to record system audio — allow it
 (System Settings → Privacy & Security → Screen & System Audio Recording → "System Audio Recording Only").
@@ -50,6 +67,7 @@ Because the app is ad-hoc signed, rebuilding may re-trigger that prompt.
 ```
 swift test
 ```
+(The Swift package is kept for tests; the app itself builds from the Xcode project.)
 Checks the crossover math: LR4 −6 dB at the crossover, flat passband, 24 dB/oct roll-off,
 low + high summing flat, exact delay-line timing, and the limiter never exceeding full scale.
 

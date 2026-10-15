@@ -93,7 +93,7 @@ final class CrossoverDSP {
     var crossoverHz: Double = 150
     var subsonicHz: Double = 40
     var subGain: Float = 0.6
-    var highPassMain = true
+    var highPassMain = false
     /// Positive delays the main speakers, negative delays the sub (milliseconds).
     var alignmentMs: Double = 0
     var sampleRate: Double = 48_000

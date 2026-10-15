@@ -67,7 +67,7 @@ final class BassJumpController: ObservableObject {
         defaults.register(defaults: [
             "enabled": true, "crossover": 150.0, "level": 0.6,
             "followSystemVolume": true, "pauseForHeadphones": true, "subwooferUID": "",
-            "alignedMode": false, "highPassMain": true, "alignmentMs": 0.0,
+            "alignedMode": false, "highPassMain": false, "alignmentMs": 0.0,
         ])
         enabled = defaults.bool(forKey: "enabled")
         crossover = defaults.double(forKey: "crossover")

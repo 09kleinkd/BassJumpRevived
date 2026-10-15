@@ -108,8 +108,11 @@ enum AudioSystem {
                                transport: transport, outputChannels: outputChannelCount(id))
     }
 
-    static func outputChannelCount(_ id: AudioObjectID) -> Int {
-        var a = address(kAudioDevicePropertyStreamConfiguration, kAudioObjectPropertyScopeOutput)
+    static func outputChannelCount(_ id: AudioObjectID) -> Int { channelCount(id, kAudioObjectPropertyScopeOutput) }
+    static func inputChannelCount(_ id: AudioObjectID) -> Int { channelCount(id, kAudioObjectPropertyScopeInput) }
+
+    static func channelCount(_ id: AudioObjectID, _ scope: AudioObjectPropertyScope) -> Int {
+        var a = address(kAudioDevicePropertyStreamConfiguration, scope)
         var size: UInt32 = 0
         guard AudioObjectGetPropertyDataSize(id, &a, 0, nil, &size) == noErr, size > 0 else { return 0 }
         let raw = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: MemoryLayout<AudioBufferList>.alignment)
@@ -117,6 +120,18 @@ enum AudioSystem {
         guard AudioObjectGetPropertyData(id, &a, 0, nil, &size, raw) == noErr else { return 0 }
         let abl = UnsafeMutableAudioBufferListPointer(raw.assumingMemoryBound(to: AudioBufferList.self))
         return abl.reduce(0) { $0 + Int($1.mNumberChannels) }
+    }
+
+    static func device(uid: String) -> AudioDeviceInfo? {
+        allDevices().first { $0.uid == uid }
+    }
+
+    /// The device's preferred stereo pair as 0-based channel indexes (defaults to 0/1).
+    static func preferredStereo(_ id: AudioObjectID) -> (left: Int, right: Int) {
+        struct Pair { var l: UInt32; var r: UInt32 }
+        let a = address(kAudioDevicePropertyPreferredChannelsForStereo, kAudioObjectPropertyScopeOutput)
+        guard CA.has(id, a), let p = try? CA.get(id, a, Pair(l: 1, r: 2)), p.l >= 1, p.r >= 1 else { return (0, 1) }
+        return (Int(p.l) - 1, Int(p.r) - 1)
     }
 
     static func defaultOutputDevice() -> AudioObjectID {

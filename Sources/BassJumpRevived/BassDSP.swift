@@ -30,68 +30,147 @@ struct Biquad {
     mutating func reset() { z1 = 0; z2 = 0 }
 }
 
-/// The subwoofer signal chain. Parameters are written from the main thread and read on the
-/// real-time audio thread; plain aligned Float/Bool stores are atomic on arm64, and the
-/// render code never allocates or locks.
+/// 4th-order Linkwitz-Riley filter (two cascaded Butterworth sections). LR4 low-pass and
+/// high-pass at the same frequency sum flat, so the speakers and sub blend seamlessly.
+struct LR4 {
+    private var s1 = Biquad(), s2 = Biquad()
+    private static let q = 0.70710678
+
+    mutating func setLowPass(_ freq: Double, _ sampleRate: Double) {
+        s1.setLowPass(freq: freq, q: Self.q, sampleRate: sampleRate)
+        s2.setLowPass(freq: freq, q: Self.q, sampleRate: sampleRate)
+    }
+
+    mutating func setHighPass(_ freq: Double, _ sampleRate: Double) {
+        s1.setHighPass(freq: freq, q: Self.q, sampleRate: sampleRate)
+        s2.setHighPass(freq: freq, q: Self.q, sampleRate: sampleRate)
+    }
+
+    @inline(__always)
+    mutating func process(_ x: Float) -> Float { s2.process(s1.process(x)) }
+
+    mutating func reset() { s1.reset(); s2.reset() }
+}
+
+/// Fixed-capacity delay line; never allocates on the audio thread.
+final class DelayLine {
+    let capacity: Int
+    private let buffer: UnsafeMutablePointer<Float>
+    private var write = 0
+
+    init(capacity: Int) {
+        self.capacity = capacity
+        buffer = .allocate(capacity: capacity)
+        buffer.initialize(repeating: 0, count: capacity)
+    }
+
+    deinit { buffer.deallocate() }
+
+    @inline(__always)
+    func process(_ x: Float, delay: Int) -> Float {
+        buffer[write] = x
+        var read = write - delay
+        if read < 0 { read += capacity }
+        let y = buffer[read]
+        write += 1
+        if write == capacity { write = 0 }
+        return y
+    }
+
+    func reset() { buffer.update(repeating: 0, count: capacity); write = 0 }
+}
+
+/// The crossover. Parameters are written from the main thread and read on the real-time
+/// audio thread (aligned Float/Double/Bool stores are atomic on arm64); render never
+/// allocates or locks.
 ///
-/// Chain: stereo → mono sum → 2nd-order high-pass (driver protection, like 3.0.1's band-pass)
-///        → 4th-order Linkwitz-Riley low-pass at the crossover → smoothed gain → soft limiter.
-final class BassDSP {
+/// Sub path:  L+R → mono → 2nd-order high-pass (driver protection) → LR4 low-pass
+///            → smoothed gain → soft limiter → optional delay.
+/// Main path: L, R → optional LR4 high-pass at the crossover → optional delay.
+/// (The main path is only used in time-aligned mode.)
+final class CrossoverDSP {
     // Parameters (main thread writes)
     var crossoverHz: Double = 150
     var subsonicHz: Double = 40
-    var targetGain: Float = 0.6
+    var subGain: Float = 0.6
+    var highPassMain = true
+    /// Positive delays the main speakers, negative delays the sub (milliseconds).
+    var alignmentMs: Double = 0
     var sampleRate: Double = 48_000
 
-    // Meter (audio thread writes, UI reads)
+    // Diagnostics (audio thread writes)
     private(set) var peak: Float = 0
-    /// Peak of the tapped system audio before filtering/gain (diagnostics).
     private(set) var inputPeak: Float = 0
+    private(set) var renderCount: UInt64 = 0
 
     // Render state
-    private var lp1 = Biquad(), lp2 = Biquad(), hp = Biquad()
-    private var appliedCrossover: Double = -1
-    private var appliedSubsonic: Double = -1
-    private var appliedRate: Double = -1
+    private var subHP = Biquad(), subLP = LR4(), mainHPL = LR4(), mainHPR = LR4()
+    private let delayL = DelayLine(capacity: 16_384)
+    private let delayR = DelayLine(capacity: 16_384)
+    private let delaySub = DelayLine(capacity: 16_384)
+    private var appliedCrossover = -1.0, appliedSubsonic = -1.0, appliedRate = -1.0
     private var gain: Float = 0
 
     func reset() {
-        lp1.reset(); lp2.reset(); hp.reset(); gain = 0; peak = 0; inputPeak = 0
+        subHP.reset(); subLP.reset(); mainHPL.reset(); mainHPR.reset()
+        delayL.reset(); delayR.reset(); delaySub.reset()
+        gain = 0; peak = 0; inputPeak = 0
     }
 
     @inline(__always)
     private func updateCoefficientsIfNeeded() {
-        if crossoverHz != appliedCrossover || sampleRate != appliedRate {
-            let f = min(max(crossoverHz, 40), sampleRate * 0.45)
-            lp1.setLowPass(freq: f, q: 0.70710678, sampleRate: sampleRate)
-            lp2.setLowPass(freq: f, q: 0.70710678, sampleRate: sampleRate)
+        let rate = sampleRate
+        if crossoverHz != appliedCrossover || rate != appliedRate {
+            let f = min(max(crossoverHz, 40), rate * 0.45)
+            subLP.setLowPass(f, rate)
+            mainHPL.setHighPass(f, rate)
+            mainHPR.setHighPass(f, rate)
             appliedCrossover = crossoverHz
         }
-        if subsonicHz != appliedSubsonic || sampleRate != appliedRate {
-            hp.setHighPass(freq: max(subsonicHz, 10), q: 0.70710678, sampleRate: sampleRate)
+        if subsonicHz != appliedSubsonic || rate != appliedRate {
+            subHP.setHighPass(freq: max(subsonicHz, 10), q: 0.70710678, sampleRate: rate)
             appliedSubsonic = subsonicHz
         }
-        appliedRate = sampleRate
+        appliedRate = rate
     }
 
-    /// Process one block. `monoIn` holds the mono sum; result is written back in place.
-    func render(_ buffer: UnsafeMutablePointer<Float>, frames: Int) {
+    /// `inL`/`inR`: tapped system audio. `sub` receives the bass. `mainL`/`mainR` (aligned
+    /// mode only) receive the speaker signal; pass nil in sub-only mode.
+    func render(inL: UnsafePointer<Float>, inR: UnsafePointer<Float>, frames: Int,
+                sub: UnsafeMutablePointer<Float>,
+                mainL: UnsafeMutablePointer<Float>?, mainR: UnsafeMutablePointer<Float>?) {
         updateCoefficientsIfNeeded()
-        let target = targetGain
-        let smoothing: Float = 0.0015 // ~10 ms glide at 48 kHz
-        var blockPeak: Float = 0
-        var blockIn: Float = 0
+        renderCount &+= 1
+
+        let target = subGain
+        let smoothing: Float = 0.0015            // ~10 ms glide at 48 kHz
+        let hpMain = highPassMain
+        let maxDelay = delaySub.capacity - 1
+        let delayFrames = min(Int(abs(alignmentMs) * sampleRate / 1000), maxDelay)
+        let mainDelay = alignmentMs > 0 ? delayFrames : 0
+        let subDelay = alignmentMs < 0 ? delayFrames : 0
+
+        var blockPeak: Float = 0, blockIn: Float = 0
         for i in 0..<frames {
-            let raw = buffer[i]
-            if abs(raw) > blockIn { blockIn = abs(raw) }
-            var x = hp.process(raw)
-            x = lp2.process(lp1.process(x))
+            let l = inL[i], r = inR[i]
+            blockIn = max(blockIn, abs(l), abs(r))
+
+            // Sub
+            var x = subHP.process((l + r) * 0.5)
+            x = subLP.process(x)
             gain += (target - gain) * smoothing
-            x *= gain
-            x = tanhf(x)                // gentle limiter: transparent below ~0.5, never exceeds 1
-            buffer[i] = x
-            let a = abs(x)
-            if a > blockPeak { blockPeak = a }
+            x = tanhf(x * gain)                  // transparent below ~0.5, never exceeds 1
+            x = delaySub.process(x, delay: subDelay)
+            sub[i] = x
+            blockPeak = max(blockPeak, abs(x))
+
+            // Main speakers
+            if let mainL, let mainR {
+                let ml = hpMain ? mainHPL.process(l) : l
+                let mr = hpMain ? mainHPR.process(r) : r
+                mainL[i] = delayL.process(ml, delay: mainDelay)
+                mainR[i] = delayR.process(mr, delay: mainDelay)
+            }
         }
         peak = max(blockPeak, peak * 0.9)
         inputPeak = max(blockIn, inputPeak * 0.9)

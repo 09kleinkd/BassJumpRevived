@@ -14,10 +14,6 @@ struct BassJumpApp: App {
     }
 }
 
-extension BassJumpController.Status {
-    var isPlaying: Bool { if case .playing = self { return true } else { return false } }
-}
-
 struct MenuView: View {
     @EnvironmentObject var c: BassJumpController
     @ObservedObject var meter: MeterModel
@@ -56,6 +52,19 @@ struct MenuView: View {
 
             Divider()
 
+            Toggle("Time-aligned mode", isOn: $c.alignedMode)
+            Text("Plays your speakers through BassJump too, so both stay in sync.")
+                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if c.alignedMode {
+                Toggle("Send bass only to the sub", isOn: $c.highPassMain)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(alignmentLabel).font(.caption)
+                    Slider(value: $c.alignmentMs, in: -30...30, step: 0.5)
+                }
+            }
+
+            Divider()
+
             Toggle("Follow system volume", isOn: $c.followSystemVolume)
             Toggle("Pause for headphones & Bluetooth", isOn: $c.pauseForHeadphones)
             Picker("Subwoofer", selection: $c.subwooferUID) {
@@ -68,8 +77,15 @@ struct MenuView: View {
             Button("Quit BassJump") { NSApplication.shared.terminate(nil) }
         }
         .padding(14)
-        .frame(width: 290)
+        .frame(width: 300)
         .onAppear { meter.isVisible = true }
         .onDisappear { meter.isVisible = false }
+    }
+
+    private var alignmentLabel: String {
+        let ms = c.alignmentMs
+        if abs(ms) < 0.25 { return "Alignment: in sync" }
+        return ms > 0 ? String(format: "Alignment: speakers delayed %.1f ms", ms)
+                      : String(format: "Alignment: sub delayed %.1f ms", -ms)
     }
 }

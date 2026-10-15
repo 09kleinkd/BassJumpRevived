@@ -2,40 +2,76 @@ import CoreAudio
 import Foundation
 import os
 
-/// Captures the system mix with a Core Audio process tap and plays the low-passed
-/// signal on the BassJump through a private aggregate device (BassJump + tap).
-/// This replaces 3.0.1's virtual device + "player" daemon with no driver at all.
+/// What the engine should be doing.
+struct EngineConfig: Equatable {
+    /// Time-aligned mode: the tap mutes normal playback and the app drives both the main
+    /// speakers and the BassJump from one aggregate device, so they share a clock and timeline.
+    var aligned: Bool
+    var subUID: String
+    /// Main speakers (aligned mode only).
+    var mainUID: String?
+}
+
+/// Captures the system mix with a Core Audio process tap and plays it through a private
+/// aggregate device. Replaces BassJump 3.0.1's virtual driver + "player" daemon.
+///
+/// Sub-only mode: unmuted tap; aggregate = BassJump. Speakers keep playing normally.
+/// Aligned mode:  muted tap; aggregate = main speakers (clock) + BassJump (drift-compensated).
 final class BassEngine {
-    let dsp = BassDSP()
-    private(set) var isRunning = false
-    private(set) var deviceUID: String?
+    let dsp = CrossoverDSP()
+    private(set) var config: EngineConfig?
+    var isRunning: Bool { config != nil }
 
     private var tapID = AudioObjectID(kAudioObjectUnknown)
+    private var tapUUID = UUID()
     private var aggregateID = AudioObjectID(kAudioObjectUnknown)
     private var ioProcID: AudioDeviceIOProcID?
-    private let scratch: UnsafeMutablePointer<Float>
-    private let scratchCapacity = 16_384
     private let log = Logger(subsystem: "local.bassjump.revived", category: "engine")
 
+    // Real-time buffers, allocated once.
+    private static let maxFrames = 16_384
+    private static let maxChannels = 128
+    private let inL = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
+    private let inR = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
+    private let outSub = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
+    private let outL = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
+    private let outR = UnsafeMutablePointer<Float>.allocate(capacity: maxFrames)
+    /// Role of each aggregate output channel: 0 silent, 1 main L, 2 main R, 3 sub.
+    private let roles = UnsafeMutablePointer<UInt8>.allocate(capacity: maxChannels)
+    private var roleCount = 0
+    /// Number of aggregate input channels that belong to subdevices (the tap follows them).
+    private var tapFirstChannel = 0
+
     init() {
-        scratch = .allocate(capacity: scratchCapacity)
-        scratch.initialize(repeating: 0, count: scratchCapacity)
+        for p in [inL, inR, outSub, outL, outR] { p.initialize(repeating: 0, count: Self.maxFrames) }
+        roles.initialize(repeating: 0, count: Self.maxChannels)
     }
 
     deinit {
         stop()
-        scratch.deallocate()
+        for p in [inL, inR, outSub, outL, outR] { p.deallocate() }
+        roles.deallocate()
     }
 
-    func start(subwooferUID: String) throws {
+    func start(_ config: EngineConfig) throws {
         stop()
         do {
-            try createTap()
-            try createAggregate(subwooferUID: subwooferUID)
+            guard let sub = AudioSystem.device(uid: config.subUID) else {
+                throw CoreAudioError(status: kAudioHardwareBadDeviceError, what: "find subwoofer")
+            }
+            var main: AudioDeviceInfo?
+            if config.aligned {
+                guard let uid = config.mainUID, let m = AudioSystem.device(uid: uid) else {
+                    throw CoreAudioError(status: kAudioHardwareBadDeviceError, what: "find main speakers")
+                }
+                main = m
+            }
+            try createTap(muted: config.aligned)
+            try createAggregate(config)
+            mapChannels(main: main, sub: sub)
             try startIO()
-            deviceUID = subwooferUID
-            isRunning = true
-            log.info("Engine started on \(subwooferUID, privacy: .public) at \(self.dsp.sampleRate) Hz")
+            self.config = config
+            log.info("Engine started: \(config.aligned ? "aligned" : "sub-only", privacy: .public), sub=\(sub.name, privacy: .public), main=\(main?.name ?? "-", privacy: .public), \(self.dsp.sampleRate) Hz, tap input at ch \(self.tapFirstChannel)")
         } catch {
             log.error("Engine start failed: \(String(describing: error), privacy: .public)")
             stop()
@@ -54,108 +90,137 @@ final class BassEngine {
             aggregateID = AudioObjectID(kAudioObjectUnknown)
         }
         if tapID != kAudioObjectUnknown {
-            AudioHardwareDestroyProcessTap(tapID)
+            AudioHardwareDestroyProcessTap(tapID)   // also un-mutes normal playback
             tapID = AudioObjectID(kAudioObjectUnknown)
         }
-        if isRunning { log.info("Engine stopped") }
-        isRunning = false
-        deviceUID = nil
+        if config != nil { log.info("Engine stopped") }
+        config = nil
         dsp.reset()
     }
 
     // MARK: - Setup
 
-    private var tapUUID = UUID()
-
-    private func createTap() throws {
-        // Exclude ourselves so the BassJump's own output is never fed back into the tap.
+    private func createTap(muted: Bool) throws {
+        // Exclude ourselves so our own output is never fed back into the tap.
         let me = AudioSystem.ownProcessObject()
-        let exclude = me == kAudioObjectUnknown ? [] : [me]
-        let description = CATapDescription(stereoGlobalTapButExcludeProcesses: exclude)
+        let description = CATapDescription(stereoGlobalTapButExcludeProcesses: me == kAudioObjectUnknown ? [] : [me])
         description.name = "BassJump Tap"
         description.isPrivate = true
-        description.muteBehavior = .unmuted   // the Mac's speakers keep playing normally
+        description.muteBehavior = muted ? .muted : .unmuted
         tapUUID = description.uuid
         var id = AudioObjectID(kAudioObjectUnknown)
         try check(AudioHardwareCreateProcessTap(description, &id), "AudioHardwareCreateProcessTap")
         tapID = id
     }
 
-    private func createAggregate(subwooferUID: String) throws {
-        let config: [String: Any] = [
+    private func createAggregate(_ config: EngineConfig) throws {
+        var subdevices: [[String: Any]] = []
+        let clockUID: String
+        if config.aligned, let mainUID = config.mainUID {
+            clockUID = mainUID
+            subdevices.append([kAudioSubDeviceUIDKey: mainUID])
+            subdevices.append([kAudioSubDeviceUIDKey: config.subUID, kAudioSubDeviceDriftCompensationKey: true])
+        } else {
+            clockUID = config.subUID
+            subdevices.append([kAudioSubDeviceUIDKey: config.subUID])
+        }
+        let description: [String: Any] = [
             kAudioAggregateDeviceNameKey: "BassJump Crossover",
             kAudioAggregateDeviceUIDKey: "local.bassjump.aggregate.\(UUID().uuidString)",
-            kAudioAggregateDeviceMainSubDeviceKey: subwooferUID,
+            kAudioAggregateDeviceMainSubDeviceKey: clockUID,
             kAudioAggregateDeviceIsPrivateKey: true,
             kAudioAggregateDeviceIsStackedKey: false,
             kAudioAggregateDeviceTapAutoStartKey: true,
-            kAudioAggregateDeviceSubDeviceListKey: [
-                [kAudioSubDeviceUIDKey: subwooferUID]
-            ],
+            kAudioAggregateDeviceSubDeviceListKey: subdevices,
             kAudioAggregateDeviceTapListKey: [
-                [kAudioSubTapUIDKey: tapUUID.uuidString,
-                 kAudioSubTapDriftCompensationKey: true]
+                [kAudioSubTapUIDKey: tapUUID.uuidString, kAudioSubTapDriftCompensationKey: true]
             ],
         ]
         var id = AudioObjectID(kAudioObjectUnknown)
-        try check(AudioHardwareCreateAggregateDevice(config as CFDictionary, &id), "AudioHardwareCreateAggregateDevice")
+        try check(AudioHardwareCreateAggregateDevice(description as CFDictionary, &id), "AudioHardwareCreateAggregateDevice")
         aggregateID = id
 
         dsp.sampleRate = (try? CA.get(id, address(kAudioDevicePropertyNominalSampleRate), Float64(48_000))) ?? 48_000
-        // Smaller buffers keep the sub closer in time to the built-in speakers.
         try? CA.set(id, address(kAudioDevicePropertyBufferFrameSize), UInt32(256))
+    }
+
+    /// Aggregate output channels are the subdevices' channels in list order (main first).
+    /// Aggregate inputs are the subdevices' inputs, followed by the tap's stereo pair.
+    private func mapChannels(main: AudioDeviceInfo?, sub: AudioDeviceInfo) {
+        roles.update(repeating: 0, count: Self.maxChannels)
+        var index = 0
+        var subInputs = AudioSystem.inputChannelCount(sub.id)
+        if let main {
+            let pair = AudioSystem.preferredStereo(main.id)
+            for c in 0..<main.outputChannels where index + c < Self.maxChannels {
+                roles[index + c] = c == pair.left ? 1 : (c == pair.right ? 2 : 0)
+            }
+            index += main.outputChannels
+            subInputs += AudioSystem.inputChannelCount(main.id)
+        }
+        for c in 0..<sub.outputChannels where index + c < Self.maxChannels { roles[index + c] = 3 }
+        roleCount = min(index + sub.outputChannels, Self.maxChannels)
+        tapFirstChannel = subInputs
     }
 
     private func startIO() throws {
         let dsp = self.dsp
-        let scratch = self.scratch
-        let capacity = scratchCapacity
+        let (inL, inR, outSub, outL, outR, roles) = (self.inL, self.inR, self.outSub, self.outL, self.outR, self.roles)
+        let roleCount = self.roleCount
+        let tapFirst = self.tapFirstChannel
+        let aligned = roleCount > 0 && (0..<roleCount).contains { roles[$0] == 1 }
+        let maxFrames = Self.maxFrames
 
         var procID: AudioDeviceIOProcID?
         let status = AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, nil) { _, inInput, _, outOutput, _ in
             let input = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: inInput))
             let output = UnsafeMutableAudioBufferListPointer(outOutput)
 
-            // Frames requested by the output side.
             var frames = 0
-            if let first = output.first, first.mNumberChannels > 0 {
-                frames = Int(first.mDataByteSize) / (MemoryLayout<Float>.size * Int(first.mNumberChannels))
+            for buf in output where buf.mNumberChannels > 0 {
+                frames = Int(buf.mDataByteSize) / (MemoryLayout<Float>.size * Int(buf.mNumberChannels))
+                break
             }
-            frames = min(frames, capacity)
+            frames = min(frames, maxFrames)
             guard frames > 0 else { return }
 
-            // 1. Mix every input channel (the tap) down to mono.
-            scratch.update(repeating: 0, count: frames)
-            var inChannels = 0
+            // 1. Pull the tap's stereo pair out of the aggregate's inputs.
+            inL.update(repeating: 0, count: frames)
+            inR.update(repeating: 0, count: frames)
+            var channel = 0
             for buf in input {
-                guard let data = buf.mData?.assumingMemoryBound(to: Float.self) else { continue }
                 let ch = Int(buf.mNumberChannels)
-                guard ch > 0 else { continue }
+                defer { channel += ch }
+                guard ch > 0, let data = buf.mData?.assumingMemoryBound(to: Float.self) else { continue }
                 let n = min(frames, Int(buf.mDataByteSize) / (MemoryLayout<Float>.size * ch))
-                for f in 0..<n {
-                    var s: Float = 0
-                    for c in 0..<ch { s += data[f * ch + c] }
-                    scratch[f] += s
+                for c in 0..<ch {
+                    let g = channel + c
+                    if g == tapFirst { for f in 0..<n { inL[f] = data[f * ch + c] } }
+                    if g == tapFirst + 1 { for f in 0..<n { inR[f] = data[f * ch + c] } }
                 }
-                inChannels += ch
-            }
-            if inChannels > 1 {
-                let k = 1 / Float(inChannels)
-                for f in 0..<frames { scratch[f] *= k }
+                if ch == 1, channel == tapFirst { for f in 0..<n { inR[f] = inL[f] } }   // mono tap
             }
 
-            // 2. Crossover + gain + limiter.
-            dsp.render(scratch, frames: frames)
+            // 2. Crossover.
+            dsp.render(inL: inL, inR: inR, frames: frames, sub: outSub,
+                       mainL: aligned ? outL : nil, mainR: aligned ? outR : nil)
 
-            // 3. Same mono bass signal to every BassJump channel.
+            // 3. Write every aggregate output channel by role.
+            channel = 0
             for buf in output {
-                guard let data = buf.mData?.assumingMemoryBound(to: Float.self) else { continue }
                 let ch = Int(buf.mNumberChannels)
-                guard ch > 0 else { continue }
+                defer { channel += ch }
+                guard ch > 0, let data = buf.mData?.assumingMemoryBound(to: Float.self) else { continue }
                 let n = min(frames, Int(buf.mDataByteSize) / (MemoryLayout<Float>.size * ch))
-                for f in 0..<n {
-                    let s = scratch[f]
-                    for c in 0..<ch { data[f * ch + c] = s }
+                for c in 0..<ch {
+                    let g = channel + c
+                    let role = g < roleCount ? roles[g] : 0
+                    switch role {
+                    case 1: for f in 0..<n { data[f * ch + c] = outL[f] }
+                    case 2: for f in 0..<n { data[f * ch + c] = outR[f] }
+                    case 3: for f in 0..<n { data[f * ch + c] = outSub[f] }
+                    default: for f in 0..<n { data[f * ch + c] = 0 }
+                    }
                 }
             }
         }

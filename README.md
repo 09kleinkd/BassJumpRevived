@@ -11,6 +11,12 @@ A native Apple Silicon replacement for Twelve South's BassJump Sound System soft
   compensation) — the same job 3.0.1's virtual driver + player daemon did.
 - Each audio block: stereo → mono → 40 Hz high-pass (protects the small driver; 3.0.1 used a
   band-pass) → 4th-order Linkwitz-Riley low-pass at the crossover → gain → soft limiter.
+- **Time-aligned mode** (optional): the tap mutes normal playback and the app plays *both* your
+  speakers and the BassJump from one aggregate device (speakers as clock, BassJump
+  drift-compensated), so they share a timeline. Optionally high-passes the speakers at the same
+  crossover (LR4 low + high sum flat), and an alignment slider delays either side by up to 30 ms.
+- **Auto-recovery:** stops before sleep and rebuilds after wake; restarts if a device is
+  unplugged or changes sample rate; a watchdog rebuilds the engine if audio stops flowing.
 - Bass gain follows the system volume and mute of your current output (the tap is pre-volume).
 - Pauses automatically for headphones, Bluetooth and AirPlay; works with built-in, Studio
   Display and other wired speakers.
@@ -24,26 +30,30 @@ and rebuild; `build.sh` compiles it with `actool` into `Assets.car` plus an `.ic
 Requires Xcode (or Command Line Tools) and macOS 14.2+.
 
 ```
-./build.sh                        # → build/BassJump.app
-cp -R build/BassJump.app /Applications/
-open /Applications/BassJump.app
+./build.sh             # → build/BassJump.app
+./build.sh --install   # also copies to /Applications and relaunches
 ```
+`build.sh` signs with your first valid "Apple Development" certificate (override with
+`SIGN_IDENTITY=…`), falling back to ad-hoc. A stable signature keeps the audio-recording
+permission across rebuilds; ad-hoc builds ask again each time.
 On first run macOS asks for permission to record system audio — allow it
 (System Settings → Privacy & Security → Screen & System Audio Recording → "System Audio Recording Only").
 Because the app is ad-hoc signed, rebuilding may re-trigger that prompt.
 
 ## Troubleshooting
 ```
+defaults write local.bassjump.revived debugLogging -bool YES   # then relaunch
 log stream --predicate 'subsystem == "local.bassjump.revived"'
 ```
-Every 5 s while running it logs `tap in` (system audio level), `sub out` and `gain`.
+Engine start/stop/restarts are always logged. With `debugLogging` on, it also logs `tap in`
+(system audio level), `sub out` and `gain` every 5 s.
 - `tap in` stays 0 while music plays → audio-recording permission is off.
 - `gain 0` → your output is muted or at zero volume.
 
 See [docs/TEARDOWN.md](docs/TEARDOWN.md) for how the original software worked.
 
 ## Known limitations / ideas
-- The sub plays slightly later (~10–20 ms) than the main speakers. Inaudible for most bass;
-  a future "aligned" mode could mute the tap and route both outputs through the aggregate.
+- In sub-only mode the sub plays slightly later (~10–20 ms) than the speakers; use
+  time-aligned mode if that bothers you.
 - No graphic EQ yet (3.0.1 had a 10-band one).
 - The raw "BassJump Core" device still appears in Sound settings (3.0.1 hid it with a kext).

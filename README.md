@@ -53,6 +53,9 @@ swift test
 Checks the crossover math: LR4 −6 dB at the crossover, flat passband, 24 dB/oct roll-off,
 low + high summing flat, exact delay-line timing, and the limiter never exceeding full scale.
 
+## Testing the menu
+`open /Applications/BassJump.app --args --show-panel` opens the popover at launch.
+
 ## Troubleshooting
 ```
 defaults write local.bassjump.revived debugLogging -bool YES   # then relaunch

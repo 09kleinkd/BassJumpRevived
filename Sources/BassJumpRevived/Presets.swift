@@ -8,6 +8,19 @@ struct BassPreset: Identifiable, Hashable, Codable {
     var isCustom = false
     var id: String { name }
 
+    /// SF Symbol shown next to the preset in menus.
+    var symbol: String {
+        if isCustom { return "star" }
+        switch name {
+        case "Default": return "slider.horizontal.3"
+        case "Pop": return "music.mic"
+        case "Rock": return "guitars"
+        case "R&B": return "music.note"
+        case "Classical": return "pianokeys"
+        default: return "dial.medium"
+        }
+    }
+
     static let builtIn: [BassPreset] = [
         BassPreset(name: "Default", crossover: 150, level: 0.6),
         BassPreset(name: "Pop", crossover: 200, level: 0.75),

@@ -17,6 +17,8 @@ struct BassJumpApp: App {
 struct MenuView: View {
     @EnvironmentObject var c: BassJumpController
     @ObservedObject var meter: MeterModel
+    @State private var savingPreset = false
+    @State private var newPresetName = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -31,14 +33,53 @@ struct MenuView: View {
             }
             ProgressView(value: Double(min(meter.level, 1))).progressViewStyle(.linear).opacity(c.status.isPlaying ? 1 : 0.3)
 
+            if c.permissionProblem {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("BassJump can't hear your Mac's audio", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption.bold()).foregroundStyle(.orange)
+                    Text("Allow it under Screen & System Audio Recording → System Audio Recording Only, then quit and reopen BassJump.")
+                        .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Button("Open Privacy Settings") { c.openPrivacySettings() }.controlSize(.small)
+                }
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color.orange.opacity(0.12)))
+            }
+
             Divider()
 
-            Picker("Preset", selection: Binding(
-                get: { c.presetName },
-                set: { name in if let p = BassPreset.all.first(where: { $0.name == name }) { c.apply(p) } }
-            )) {
-                ForEach(BassPreset.all) { Text($0.name).tag($0.name) }
-                if c.presetName == "Custom" { Text("Custom").tag("Custom") }
+            if let name = c.profileOutputName {
+                Text("Settings for \(name)").font(.caption2).foregroundStyle(.secondary)
+            }
+
+            HStack {
+                Picker("Preset", selection: Binding(
+                    get: { c.presetName },
+                    set: { name in if let p = c.allPresets.first(where: { $0.name == name }) { c.apply(p) } }
+                )) {
+                    ForEach(BassPreset.builtIn) { Text($0.name).tag($0.name) }
+                    if !c.customPresets.isEmpty {
+                        Divider()
+                        ForEach(c.customPresets) { Text($0.name).tag($0.name) }
+                    }
+                    if c.presetName == "Custom" { Text("Custom").tag("Custom") }
+                }
+                if c.customPresets.contains(where: { $0.name == c.presetName }) {
+                    Button { c.deleteCustomPreset(named: c.presetName) } label: { Image(systemName: "trash") }
+                        .buttonStyle(.borderless).help("Delete this preset")
+                } else if c.presetName == "Custom" {
+                    Button { newPresetName = ""; savingPreset = true } label: { Image(systemName: "plus") }
+                        .buttonStyle(.borderless).help("Save these settings as a preset")
+                }
+            }
+            if savingPreset {
+                HStack {
+                    TextField("Preset name", text: $newPresetName)
+                        .textFieldStyle(.roundedBorder).controlSize(.small)
+                        .onSubmit(save)
+                    Button("Save", action: save).controlSize(.small)
+                        .disabled(newPresetName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Button("Cancel") { savingPreset = false }.controlSize(.small)
+                }
             }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -50,10 +91,8 @@ struct MenuView: View {
                 Slider(value: $c.level, in: 0...1.5, step: 0.05)
             }
 
-            Divider()
-
             Toggle("Time-aligned mode", isOn: $c.alignedMode)
-            Text("Plays your speakers through BassJump too, so both stay in sync.")
+            Text("Plays your speakers through BassJump too, so both stay in sync. Best with MacBook speakers.")
                 .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if c.alignedMode {
                 Toggle("Send bass only to the sub", isOn: $c.highPassMain)
@@ -67,6 +106,7 @@ struct MenuView: View {
 
             Toggle("Follow system volume", isOn: $c.followSystemVolume)
             Toggle("Pause for headphones & Bluetooth", isOn: $c.pauseForHeadphones)
+            Toggle("Shortcut \(c.hotKeyDisplay) turns BassJump on/off", isOn: $c.hotKeyEnabled)
             Picker("Subwoofer", selection: $c.subwooferUID) {
                 Text("Automatic").tag("")
                 ForEach(c.outputDevices.filter { !$0.isBuiltIn }) { Text($0.name).tag($0.uid) }
@@ -77,9 +117,14 @@ struct MenuView: View {
             Button("Quit BassJump") { NSApplication.shared.terminate(nil) }
         }
         .padding(14)
-        .frame(width: 300)
+        .frame(width: 310)
         .onAppear { meter.isVisible = true }
         .onDisappear { meter.isVisible = false }
+    }
+
+    private func save() {
+        c.saveCustomPreset(named: newPresetName)
+        savingPreset = false
     }
 
     private var alignmentLabel: String {

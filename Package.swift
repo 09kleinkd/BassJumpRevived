@@ -8,6 +8,11 @@ let package = Package(
         .executableTarget(
             name: "BassJumpRevived",
             path: "Sources/BassJumpRevived"
-        )
+        ),
+        .testTarget(
+            name: "BassJumpRevivedTests",
+            dependencies: ["BassJumpRevived"],
+            path: "Tests/BassJumpRevivedTests"
+        ),
     ]
 )

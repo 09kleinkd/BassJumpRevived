@@ -193,6 +193,16 @@ enum AudioSystem {
         return m != 0
     }
 
+    /// True if any process other than ours is currently sending audio to an output.
+    static func otherProcessIsPlaying() -> Bool {
+        let me = getpid()
+        for p in CA.objectList(AudioObjectID(kAudioObjectSystemObject), address(kAudioHardwarePropertyProcessObjectList)) {
+            guard let running = try? CA.get(p, address(kAudioProcessPropertyIsRunningOutput), UInt32(0)), running != 0 else { continue }
+            if let pid = try? CA.get(p, address(kAudioProcessPropertyPID), pid_t(0)), pid != me { return true }
+        }
+        return false
+    }
+
     static func ownProcessObject() -> AudioObjectID {
         var pid = getpid()
         var a = address(kAudioHardwarePropertyTranslatePIDToProcessObject)

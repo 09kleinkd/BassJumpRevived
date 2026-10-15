@@ -20,6 +20,12 @@ A native Apple Silicon replacement for Twelve South's BassJump Sound System soft
 - Bass gain follows the system volume and mute of your current output (the tap is pre-volume).
 - Pauses automatically for headphones, Bluetooth and AirPlay; works with built-in, Studio
   Display and other wired speakers.
+- **Per-output settings:** crossover, level and mode are remembered separately for each output
+  (e.g. MacBook speakers vs. a Studio Display) and switch automatically with the output.
+- **Custom presets:** set crossover/level, press **+** next to the preset menu and name it.
+- **Shortcut ⌃⌥⌘B** turns BassJump on/off from anywhere (no Accessibility permission needed).
+- **Permission check:** if other apps are playing but the tap hears only silence for ~10 s,
+  the menu shows a warning with a button to the Privacy settings.
 - Presets from 3.0.1: Default 150 Hz / 60 %, Pop 200/75, Rock 175/80, R&B 150/100, Classical 175/50.
 
 ## App icon
@@ -39,6 +45,13 @@ permission across rebuilds; ad-hoc builds ask again each time.
 On first run macOS asks for permission to record system audio — allow it
 (System Settings → Privacy & Security → Screen & System Audio Recording → "System Audio Recording Only").
 Because the app is ad-hoc signed, rebuilding may re-trigger that prompt.
+
+## Tests
+```
+swift test
+```
+Checks the crossover math: LR4 −6 dB at the crossover, flat passband, 24 dB/oct roll-off,
+low + high summing flat, exact delay-line timing, and the limiter never exceeding full scale.
 
 ## Troubleshooting
 ```
@@ -61,5 +74,6 @@ See [docs/TEARDOWN.md](docs/TEARDOWN.md) for how the original software worked.
   Spreading stereo across all channels (`defaults write local.bassjump.revived fillAllChannels
   -bool YES`) matches loudness but colours the sound by ±7 dB, so it's off by default. Use
   sub-only mode with the Studio Display; time-aligned mode is meant for MacBook speakers.
-- No graphic EQ yet (3.0.1 had a 10-band one).
+- No graphic EQ (3.0.1 had a 10-band one). In sub-only mode the speakers bypass the app, so
+  an EQ could only shape the sub.
 - The raw "BassJump Core" device still appears in Sound settings (3.0.1 hid it with a kext).

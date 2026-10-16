@@ -39,6 +39,12 @@ system audio recording when asked.
   room and sets the first band for you. Saved per output.
 - **Night mode:** −6 dB of bass and a −10 dBFS limiter ceiling with a slow release, so
   explosions and drops don't shake the house. Also a Shortcuts action.
+- **Speaker EQ:** a 10-band graphic EQ for your speakers (31 Hz – 16 kHz, ±12 dB, with
+  presets), like 3.0.1's. It works in time-aligned mode, where the speakers play through the
+  app; boosts automatically lower the overall level so nothing clips. Saved per output.
+- **Output guard:** if "BassJump Core" gets picked as the Mac's sound output, the app switches
+  back to your speakers and tells you (3.0.1 hid the device with a kernel extension, which
+  current macOS won't load). Turn off in Settings → Speakers.
 - **Mode by speaker type:** the first time BassJump sees an output it picks time-aligned mode
   for a Mac's built-in stereo speakers and sub-only mode for everything else (displays,
   USB/Thunderbolt speakers). Change it any time; the choice is remembered per output.
@@ -157,9 +163,9 @@ See [docs/TEARDOWN.md](docs/TEARDOWN.md) for how the original software worked.
   Spreading stereo across all channels (`defaults write local.bassjump.revived fillAllChannels
   -bool YES`) matches loudness but colours the sound by ±7 dB, so it's off by default. Use
   sub-only mode with the Studio Display; time-aligned mode is meant for MacBook speakers.
-- No graphic EQ for the speakers (3.0.1 had a 10-band one). In sub-only mode the speakers
-  bypass the app, so the EQ only shapes the sub.
-- The raw "BassJump Core" device still appears in Sound settings (3.0.1 hid it with a kext).
+- The speaker EQ only works in time-aligned mode; in sub-only mode the speakers bypass the app.
+- The raw "BassJump Core" device still appears in Sound settings (3.0.1 hid it with a kext);
+  the output guard switches away from it if it's chosen.
 
 ## License
 MIT — see [LICENSE](LICENSE). "BassJump" is a trademark of Twelve South LLC; this project is not

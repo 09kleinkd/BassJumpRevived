@@ -24,7 +24,7 @@ enum SettingsWindow {
             tabs.addTabViewItem(item)
         }
         add(GeneralSettings(), "General", "gearshape", height: 470)
-        add(SoundSettings(), "Speakers", "hifispeaker.2", height: 345)
+        add(SoundSettings(), "Speakers", "hifispeaker.2", height: 405)
         add(AppsSettings(), "Apps", "app.badge", height: 290)
         add(HelpSettings(), "Help", "questionmark.circle", height: 400)
 
@@ -176,6 +176,10 @@ private struct SoundSettings: View {
                 Toggle(isOn: $c.pauseForHeadphones) {
                     Text("Pause for headphones and wireless speakers")
                     Text("Stops the sub when sound goes to headphones, Bluetooth or AirPlay")
+                }
+                Toggle(isOn: $c.guardOutput) {
+                    Text("Keep BassJump Core from becoming the sound output")
+                    Text("If it's picked in Sound settings, switch back to your speakers. BassJump plays the bass automatically.")
                 }
             } header: { Text("Playback") }
         }

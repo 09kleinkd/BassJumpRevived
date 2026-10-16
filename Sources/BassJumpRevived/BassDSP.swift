@@ -202,6 +202,15 @@ final class CrossoverDSP {
     /// Sub EQ: two peaking bands (0 dB = off).
     var eq1Hz: Double = 60, eq1DB: Double = 0, eq1Q: Double = 4
     var eq2Hz: Double = 100, eq2DB: Double = 0, eq2Q: Double = 4
+    /// Speaker EQ (time-aligned mode only): 10 octave bands, like BassJump 3.0.1's graphic EQ.
+    static let speakerEQBands: [Double] = [31, 63, 125, 250, 500, 1_000, 2_000, 4_000, 8_000, 16_000]
+    /// Band gains in dB; written element-wise from the main thread (fixed storage, no reallocation).
+    let speakerEQGains: UnsafeMutablePointer<Double> = {
+        let p = UnsafeMutablePointer<Double>.allocate(capacity: 10); p.initialize(repeating: 0, count: 10); return p
+    }()
+    func setSpeakerEQ(_ gains: [Double]) {
+        for i in 0..<10 { speakerEQGains[i] = i < gains.count ? min(max(gains[i], -12), 12) : 0 }
+    }
     /// Limiter ceiling and release (night mode lowers the ceiling and slows the release).
     var limiterThreshold: Float = 0.89
     var limiterReleaseMs: Double = 150
@@ -227,10 +236,31 @@ final class CrossoverDSP {
     private var eq1 = Biquad(), eq2 = Biquad(), eq1R = Biquad(), eq2R = Biquad()
     private var appliedEQ: [Double] = []
     private let limiter = LookaheadLimiter()
+    // Speaker path: EQ biquads per channel, auto preamp, and a safety limiter with the same
+    // look-ahead as the sub's (so both paths have equal latency).
+    private let speakerL = UnsafeMutablePointer<Biquad>.allocate(capacity: 10)
+    private let speakerR = UnsafeMutablePointer<Biquad>.allocate(capacity: 10)
+    private let appliedSpeakerEQ: UnsafeMutablePointer<Double> = {
+        let p = UnsafeMutablePointer<Double>.allocate(capacity: 10); p.initialize(repeating: .nan, count: 10); return p
+    }()
+    private var speakerEQActive = false
+    private var speakerPreamp: Float = 1
+    private let mainLimiter: LookaheadLimiter = { let l = LookaheadLimiter(); l.threshold = 0.995; return l }()
+
+    init() {
+        speakerL.initialize(repeating: Biquad(), count: 10)
+        speakerR.initialize(repeating: Biquad(), count: 10)
+    }
+
+    deinit {
+        speakerEQGains.deallocate(); appliedSpeakerEQ.deallocate()
+        speakerL.deallocate(); speakerR.deallocate()
+    }
 
     func reset() {
         subHP.reset(); subLP.reset(); mainHPL.reset(); mainHPR.reset(); subHP2.reset(); subLP2.reset()
-        eq1.reset(); eq2.reset(); eq1R.reset(); eq2R.reset(); limiter.reset()
+        eq1.reset(); eq2.reset(); eq1R.reset(); eq2R.reset(); limiter.reset(); mainLimiter.reset()
+        for i in 0..<10 { speakerL[i].reset(); speakerR[i].reset() }
         delayL.reset(); delayR.reset(); delaySub.reset(); delaySub2.reset()
         gain = 0; gain2 = 0; peak = 0; inputPeak = 0
     }
@@ -251,7 +281,22 @@ final class CrossoverDSP {
             subHP2.setHighPass(freq: max(subsonicHz, 10), q: 0.70710678, sampleRate: rate)
             appliedSubsonic = subsonicHz
         }
-        if rate != appliedRate { limiter.configure(sampleRate: rate) }
+        if rate != appliedRate { limiter.configure(sampleRate: rate); mainLimiter.configure(sampleRate: rate) }
+        var speakerChanged = rate != appliedRate
+        for i in 0..<10 where speakerEQGains[i] != appliedSpeakerEQ[i] { speakerChanged = true }
+        if speakerChanged {
+            var maxBoost = 0.0, active = false
+            for i in 0..<10 {
+                let g = speakerEQGains[i]
+                speakerL[i].setPeaking(freq: min(Self.speakerEQBands[i], rate * 0.45), q: 1.41, gainDB: g, sampleRate: rate)
+                speakerR[i] = speakerL[i].withState(of: speakerR[i])
+                appliedSpeakerEQ[i] = g
+                maxBoost = max(maxBoost, g)
+                if g != 0 { active = true }
+            }
+            speakerEQActive = active
+            speakerPreamp = Float(pow(10, -maxBoost / 20))   // headroom for the biggest boost
+        }
         let eq = [eq1Hz, eq1DB, eq1Q, eq2Hz, eq2DB, eq2Q]
         if eq != appliedEQ || rate != appliedRate {
             let nyq = rate * 0.45
@@ -281,8 +326,10 @@ final class CrossoverDSP {
         let hpMain = highPassMain
         let maxDelay = delaySub.capacity - 1
         let delayFrames = min(Int(abs(alignmentMs) * sampleRate / 1000), maxDelay)
-        // The limiter delays the sub by its look-ahead; delay the speakers to match.
-        let mainDelay = min((alignmentMs > 0 ? delayFrames : 0) + limiter.latency, maxDelay)
+        // Both paths run through a look-ahead limiter of equal latency, so only the
+        // alignment setting offsets them.
+        let mainDelay = alignmentMs > 0 ? delayFrames : 0
+        let eqOn = speakerEQActive, preamp = speakerPreamp
         let subDelay = alignmentMs < 0 ? delayFrames : 0
         let useEQ1 = eq1DB != 0, useEQ2 = eq2DB != 0
 
@@ -317,8 +364,13 @@ final class CrossoverDSP {
 
             // Main speakers
             if let mainL, let mainR {
-                let ml = hpMain ? mainHPL.process(l) : l
-                let mr = hpMain ? mainHPR.process(r) : r
+                var ml = l, mr = r
+                if eqOn {
+                    for b in 0..<10 { ml = speakerL[b].process(ml); mr = speakerR[b].process(mr) }
+                    ml *= preamp; mr *= preamp
+                }
+                if hpMain { ml = mainHPL.process(ml); mr = mainHPR.process(mr) }
+                (ml, mr) = mainLimiter.process(ml, mr)
                 mainL[i] = delayL.process(ml, delay: mainDelay)
                 mainR[i] = delayR.process(mr, delay: mainDelay)
             }

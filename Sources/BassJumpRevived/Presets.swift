@@ -42,13 +42,18 @@ struct OutputProfile: Codable, Equatable {
     var eqEnabled = true
     var eq1Hz = 60.0, eq1DB = 0.0
     var eq2Hz = 100.0, eq2DB = 0.0
+    /// Speaker EQ (time-aligned mode): 10 octave-band gains in dB, 31 Hz – 16 kHz.
+    var speakerEQEnabled = true
+    var speakerEQ = [Double](repeating: 0, count: 10)
 
     init(aligned: Bool = false, crossover: Double = 150, level: Double = 0.6,
          highPassMain: Bool = false, alignmentMs: Double = 0, invertSub: Bool = false,
-         eqEnabled: Bool = true, eq1Hz: Double = 60, eq1DB: Double = 0, eq2Hz: Double = 100, eq2DB: Double = 0) {
+         eqEnabled: Bool = true, eq1Hz: Double = 60, eq1DB: Double = 0, eq2Hz: Double = 100, eq2DB: Double = 0,
+         speakerEQEnabled: Bool = true, speakerEQ: [Double] = [Double](repeating: 0, count: 10)) {
         self.aligned = aligned; self.crossover = crossover; self.level = level
         self.highPassMain = highPassMain; self.alignmentMs = alignmentMs; self.invertSub = invertSub
         self.eqEnabled = eqEnabled; self.eq1Hz = eq1Hz; self.eq1DB = eq1DB; self.eq2Hz = eq2Hz; self.eq2DB = eq2DB
+        self.speakerEQEnabled = speakerEQEnabled; self.speakerEQ = speakerEQ
     }
 
     /// Mode for an output BassJump hasn't seen before: time-aligned for a Mac's own stereo
@@ -72,6 +77,29 @@ struct OutputProfile: Codable, Equatable {
         eq1DB = try c.decodeIfPresent(Double.self, forKey: .eq1DB) ?? 0
         eq2Hz = try c.decodeIfPresent(Double.self, forKey: .eq2Hz) ?? 100
         eq2DB = try c.decodeIfPresent(Double.self, forKey: .eq2DB) ?? 0
+        speakerEQEnabled = try c.decodeIfPresent(Bool.self, forKey: .speakerEQEnabled) ?? true
+        let bands = try c.decodeIfPresent([Double].self, forKey: .speakerEQ) ?? []
+        speakerEQ = bands.count == 10 ? bands : [Double](repeating: 0, count: 10)
+    }
+}
+
+/// Speaker EQ presets (10 octave bands, 31 Hz – 16 kHz).
+struct SpeakerEQPreset: Identifiable, Hashable {
+    let name: String
+    let gains: [Double]
+    var id: String { name }
+
+    static let all: [SpeakerEQPreset] = [
+        SpeakerEQPreset(name: "Flat", gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        SpeakerEQPreset(name: "Warm", gains: [3, 2.5, 1.5, 0.5, 0, 0, -0.5, -1, -1.5, -2]),
+        SpeakerEQPreset(name: "Bright", gains: [0, 0, 0, 0, 0, 0.5, 1.5, 2.5, 3.5, 4]),
+        SpeakerEQPreset(name: "Vocal", gains: [-2, -1.5, -1, 0, 1.5, 3, 3, 1.5, 0, -1]),
+        SpeakerEQPreset(name: "Smile", gains: [4, 3, 1.5, 0, -1, -1, 0, 1.5, 3, 4]),
+        SpeakerEQPreset(name: "Late Night", gains: [-3, -2, -1, 0, 1, 2, 2, 1, 0, -1]),
+    ]
+
+    static func matching(_ gains: [Double]) -> SpeakerEQPreset? {
+        all.first { zip($0.gains, gains).allSatisfy { abs($0 - $1) < 0.05 } }
     }
 }
 

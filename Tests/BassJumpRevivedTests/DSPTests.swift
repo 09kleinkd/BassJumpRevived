@@ -226,3 +226,74 @@ final class ShortcutTests: XCTestCase {
         XCTAssertEqual(Shortcut.standard.display, "⌃⌥⌘B")
     }
 }
+
+final class SpeakerEQTests: XCTestCase {
+    let rate = 48_000.0
+
+    /// Runs a sine through the speaker path (time-aligned mode) and returns its steady-state level in dB.
+    private func mainLevel(_ dsp: CrossoverDSP, freq: Double) -> Double {
+        let n = 24_000
+        let x = (0..<n).map { Float(0.25 * sin(2 * .pi * freq * Double($0) / rate)) }
+        var sub = [Float](repeating: 0, count: n), l = sub, r = sub
+        x.withUnsafeBufferPointer { inp in
+            sub.withUnsafeMutableBufferPointer { s in
+                l.withUnsafeMutableBufferPointer { lb in
+                    r.withUnsafeMutableBufferPointer { rb in
+                        dsp.render(inL: inp.baseAddress!, inR: inp.baseAddress!, frames: n, sub: s.baseAddress!,
+                                   mainL: lb.baseAddress!, mainR: rb.baseAddress!)
+                    }
+                }
+            }
+        }
+        let peak = l[(n / 2)...].map(abs).max()!
+        return 20 * log10(Double(peak) / 0.25)
+    }
+
+    func testFlatSpeakerPathIsUnchanged() {
+        let dsp = CrossoverDSP(); dsp.sampleRate = rate
+        XCTAssertEqual(mainLevel(dsp, freq: 1_000), 0, accuracy: 0.05)
+    }
+
+    /// +6 dB at 1 kHz: the auto preamp takes 6 dB off everything, so 1 kHz stays put and the
+    /// rest drops 6 dB — nothing can clip.
+    func testBoostUsesPreampHeadroom() {
+        let dsp = CrossoverDSP(); dsp.sampleRate = rate
+        dsp.setSpeakerEQ([0, 0, 0, 0, 0, 6, 0, 0, 0, 0])
+        XCTAssertEqual(mainLevel(dsp, freq: 1_000), 0, accuracy: 0.3)
+        let dsp2 = CrossoverDSP(); dsp2.sampleRate = rate
+        dsp2.setSpeakerEQ([0, 0, 0, 0, 0, 6, 0, 0, 0, 0])
+        XCTAssertEqual(mainLevel(dsp2, freq: 12_000), -6, accuracy: 0.5)   // 12 kHz: 4 samples per cycle, so sample peaks are true peaks
+    }
+
+    func testCutLowersItsBand() {
+        let dsp = CrossoverDSP(); dsp.sampleRate = rate
+        dsp.setSpeakerEQ([0, 0, 0, -9, 0, 0, 0, 0, 0, 0])
+        XCTAssertEqual(mainLevel(dsp, freq: 250), -9, accuracy: 0.5)
+    }
+
+    /// Both paths go through equal-latency limiters: an impulse on the speaker path comes out
+    /// exactly `latency` samples later (no extra offset vs. the sub).
+    func testSpeakerPathLatencyMatchesLimiter() {
+        let dsp = CrossoverDSP(); dsp.sampleRate = rate
+        let n = 1_024
+        var x = [Float](repeating: 0, count: n); x[100] = 0.5
+        var sub = [Float](repeating: 0, count: n), l = sub, r = sub
+        x.withUnsafeBufferPointer { inp in
+            sub.withUnsafeMutableBufferPointer { s in
+                l.withUnsafeMutableBufferPointer { lb in
+                    r.withUnsafeMutableBufferPointer { rb in
+                        dsp.render(inL: inp.baseAddress!, inR: inp.baseAddress!, frames: n, sub: s.baseAddress!,
+                                   mainL: lb.baseAddress!, mainR: rb.baseAddress!)
+                    }
+                }
+            }
+        }
+        let latency = LookaheadLimiter(sampleRate: rate).latency
+        XCTAssertEqual(l.firstIndex { abs($0) > 0.4 }, 100 + latency)
+    }
+
+    func testPresetMatching() {
+        XCTAssertEqual(SpeakerEQPreset.matching([Double](repeating: 0, count: 10))?.name, "Flat")
+        XCTAssertNil(SpeakerEQPreset.matching([1, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
+    }
+}

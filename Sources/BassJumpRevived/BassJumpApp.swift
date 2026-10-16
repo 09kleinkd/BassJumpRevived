@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var settingsWindow: NSWindow?
     private var onboardingWindow: NSWindow?
+    private var speakerEQWindow: NSWindow?
     private let popover = NSPopover()
     private let controller = BassJumpController()
     private lazy var calibrator = Calibrator(controller: controller)
@@ -64,6 +65,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NSApp.terminate(nil)
             }
         }
+        if CommandLine.arguments.contains("--speaker-eq") {
+            DispatchQueue.main.async { self.showSpeakerEQ() }
+        }
         if CommandLine.arguments.contains("--settings") {
             DispatchQueue.main.async { self.showSettings() }
         }
@@ -97,6 +101,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSApp.activate()
         settingsWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    func showSpeakerEQ() {
+        popover.performClose(nil)
+        if speakerEQWindow == nil {
+            let host = NSHostingController(rootView: SpeakerEQView().environmentObject(controller))
+            let window = NSWindow(contentViewController: host)
+            window.title = "Speaker EQ"
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            window.center()
+            speakerEQWindow = window
+        }
+        NSApp.activate()
+        speakerEQWindow?.makeKeyAndOrderFront(nil)
     }
 
     func showOnboarding() {

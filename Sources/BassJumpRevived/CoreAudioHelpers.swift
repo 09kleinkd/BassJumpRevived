@@ -156,6 +156,19 @@ enum AudioSystem {
         return id == kAudioObjectUnknown ? nil : CA.string(id, kAudioObjectPropertyName)
     }
 
+    /// Where alert sounds and sound effects play (usually follows the default output).
+    static func defaultSystemOutputDevice() -> AudioObjectID {
+        (try? CA.get(AudioObjectID(kAudioObjectSystemObject),
+                     address(kAudioHardwarePropertyDefaultSystemOutputDevice), AudioObjectID(kAudioObjectUnknown)))
+            ?? AudioObjectID(kAudioObjectUnknown)
+    }
+
+    @discardableResult
+    static func setDefaultOutput(_ id: AudioObjectID, system: Bool = false) -> Bool {
+        let sel = system ? kAudioHardwarePropertyDefaultSystemOutputDevice : kAudioHardwarePropertyDefaultOutputDevice
+        return (try? CA.set(AudioObjectID(kAudioObjectSystemObject), address(sel), id)) != nil
+    }
+
     static func defaultOutputDevice() -> AudioObjectID {
         (try? CA.get(AudioObjectID(kAudioObjectSystemObject),
                      address(kAudioHardwarePropertyDefaultOutputDevice), AudioObjectID(kAudioObjectUnknown)))

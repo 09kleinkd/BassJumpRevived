@@ -14,7 +14,7 @@ final class BassJumpController: ObservableObject {
     private(set) static weak var shared: BassJumpController?
 
     enum Status: Equatable {
-        case off, playing(sub: String, main: String?), noDevice, notSpeakers, error(String)
+        case off, playing(sub: String, main: String?), noDevice, notSpeakers, bassJumpIsOutput, error(String)
 
         var text: String {
             switch self {
@@ -23,6 +23,7 @@ final class BassJumpController: ObservableObject {
             case .playing(let sub, let main?): return "Time-aligned: \(main) + \(sub)"
             case .noDevice: return "BassJump not connected"
             case .notSpeakers: return "Paused — sound is going to headphones or a wireless device"
+            case .bassJumpIsOutput: return "Paused — BassJump Core is selected as your sound output. Pick your speakers in Sound settings."
             case .error(let msg): return msg
             }
         }
@@ -41,6 +42,9 @@ final class BassJumpController: ObservableObject {
     @Published var stereoSubs: Bool { didSet { saveGlobal(); reconcile() } }
     @Published var notifyOnConnect: Bool { didSet { saveGlobal() } }
     @Published var liveIcon: Bool { didSet { saveGlobal() } }
+    /// Switch sound back to the speakers if someone picks "BassJump Core" as the output
+    /// (3.0.1 hid the device with a kext; modern macOS won't load one).
+    @Published var guardOutput: Bool { didSet { saveGlobal(); reconcile() } }
     /// Quieter bass with peaks held well down, for late at night.
     @Published var nightMode: Bool { didSet { saveGlobal(); applyParameters(); ControlBridge.stateChanged() } }
 
@@ -56,6 +60,8 @@ final class BassJumpController: ObservableObject {
     @Published var eq1DB: Double { didSet { profileChanged(applyOnly: true) } }
     @Published var eq2Hz: Double { didSet { profileChanged(applyOnly: true) } }
     @Published var eq2DB: Double { didSet { profileChanged(applyOnly: true) } }
+    @Published var speakerEQEnabled: Bool { didSet { profileChanged(applyOnly: true) } }
+    @Published var speakerEQ: [Double] { didSet { profileChanged(applyOnly: true) } }
 
     // MARK: State
     @Published private(set) var status: Status = .off
@@ -113,7 +119,7 @@ final class BassJumpController: ObservableObject {
         defaults.register(defaults: [
             "enabled": true, "followSystemVolume": true, "pauseForHeadphones": true,
             "subwooferUID": "", "hotKeyEnabled": true, "skipCalls": true, "loudness": false,
-            "stereoSubs": true, "notifyOnConnect": true, "liveIcon": true, "nightMode": false,
+            "stereoSubs": true, "notifyOnConnect": true, "liveIcon": true, "nightMode": false, "guardOutput": true,
             "crossover": 150.0, "level": 0.6, "alignedMode": false, "highPassMain": false, "alignmentMs": 0.0,
         ])
         enabled = defaults.bool(forKey: "enabled")
@@ -128,6 +134,7 @@ final class BassJumpController: ObservableObject {
         notifyOnConnect = defaults.bool(forKey: "notifyOnConnect")
         liveIcon = defaults.bool(forKey: "liveIcon")
         nightMode = defaults.bool(forKey: "nightMode")
+        guardOutput = defaults.bool(forKey: "guardOutput")
         tapVerified = defaults.bool(forKey: "tapVerified")
         // Last-used sound settings seed any output that has no profile yet.
         crossover = defaults.double(forKey: "crossover")
@@ -137,6 +144,7 @@ final class BassJumpController: ObservableObject {
         alignmentMs = defaults.double(forKey: "alignmentMs")
         invertSub = defaults.bool(forKey: "invertSub")
         eqEnabled = true; eq1Hz = 60; eq1DB = 0; eq2Hz = 100; eq2DB = 0   // per-output only
+        speakerEQEnabled = true; speakerEQ = [Double](repeating: 0, count: 10)
         profiles = defaults.decoded([String: OutputProfile].self, forKey: "profiles") ?? [:]
         customPresets = defaults.decoded([BassPreset].self, forKey: "customPresets") ?? []
         shortcut = defaults.decoded(Shortcut.self, forKey: "shortcut") ?? .standard
@@ -144,7 +152,7 @@ final class BassJumpController: ObservableObject {
 
         let system = AudioObjectID(kAudioObjectSystemObject)
         for sel in [kAudioHardwarePropertyDevices, kAudioHardwarePropertyDefaultOutputDevice,
-                    kAudioHardwarePropertyProcessObjectList] {
+                    kAudioHardwarePropertyDefaultSystemOutputDevice, kAudioHardwarePropertyProcessObjectList] {
             if let l = PropertyListener(system, address(sel), { [weak self] in self?.scheduleReconcile() }) {
                 systemListeners.append(l)
             }
@@ -309,7 +317,8 @@ final class BassJumpController: ObservableObject {
     private var currentProfile: OutputProfile {
         OutputProfile(aligned: alignedMode, crossover: crossover, level: level,
                       highPassMain: highPassMain, alignmentMs: alignmentMs, invertSub: invertSub,
-                      eqEnabled: eqEnabled, eq1Hz: eq1Hz, eq1DB: eq1DB, eq2Hz: eq2Hz, eq2DB: eq2DB)
+                      eqEnabled: eqEnabled, eq1Hz: eq1Hz, eq1DB: eq1DB, eq2Hz: eq2Hz, eq2DB: eq2DB,
+                      speakerEQEnabled: speakerEQEnabled, speakerEQ: speakerEQ)
     }
 
     private func profileChanged(applyOnly: Bool) {
@@ -341,6 +350,7 @@ final class BassJumpController: ObservableObject {
             fresh.aligned = OutputProfile.suggestsAlignedMode(for: output)
             fresh.highPassMain = false; fresh.alignmentMs = 0
             fresh.eq1DB = 0; fresh.eq2DB = 0
+            fresh.speakerEQ = [Double](repeating: 0, count: 10)
             p = fresh
             log.info("New output \(output.name, privacy: .public): \(fresh.aligned ? "time-aligned" : "sub-only", privacy: .public) mode")
         }
@@ -350,6 +360,7 @@ final class BassJumpController: ObservableObject {
         crossover = p.crossover; level = p.level; alignedMode = p.aligned
         highPassMain = p.highPassMain; alignmentMs = p.alignmentMs; invertSub = p.invertSub
         eqEnabled = p.eqEnabled; eq1Hz = p.eq1Hz; eq1DB = p.eq1DB; eq2Hz = p.eq2Hz; eq2DB = p.eq2DB
+        speakerEQEnabled = p.speakerEQEnabled; speakerEQ = p.speakerEQ
         loadingProfile = false
         updatePresetName()
         log.info("Using settings for \(output.name, privacy: .public)")
@@ -379,7 +390,11 @@ final class BassJumpController: ObservableObject {
         let sub2: AudioDeviceInfo? = stereoSubs ? bassJumps.first(where: { $0.id != sub?.id }) : nil
         stereoActive = sub != nil && sub2 != nil
         notifyConnectionChange(present: sub != nil, name: sub?.name)
+        if guardOutput && rescueOutputFromBassJump() { return }   // the switch triggers another reconcile
         let defaultOut = AudioSystem.defaultOutputDevice()
+        if let out = AudioSystem.info(for: defaultOut), !out.looksLikeBassJump, AudioSystem.isSpeakers(defaultOut) {
+            if defaults.string(forKey: "lastSpeakersUID") != out.uid { defaults.set(out.uid, forKey: "lastSpeakersUID") }
+        }
         let main = AudioSystem.info(for: defaultOut)
         if let main, main.id != sub?.id { selectProfile(for: main) }
         refreshAudioApps()
@@ -387,7 +402,9 @@ final class BassJumpController: ObservableObject {
         let desired: Status
         if !enabled { desired = .off }
         else if sub == nil { desired = .noDevice }
-        else if defaultOut == sub!.id { desired = .notSpeakers }   // the BassJump itself is the output
+        else if defaultOut == sub!.id || AudioSystem.info(for: defaultOut)?.looksLikeBassJump == true {
+            desired = .bassJumpIsOutput                                // the BassJump itself is the output
+        }
         else if pauseForHeadphones && !AudioSystem.isSpeakers(defaultOut) { desired = .notSpeakers }
         else { desired = .playing(sub: stereoActive ? "two BassJumps" : sub!.name, main: alignedMode ? main?.name : nil) }
 
@@ -416,6 +433,28 @@ final class BassJumpController: ObservableObject {
             permissionProblem = false
         }
         status = desired
+    }
+
+    /// If a BassJump has become the system's sound output (or alert-sound output), switch back
+    /// to the last speakers used — or the Mac's own — and say so. Returns true if it switched.
+    private func rescueOutputFromBassJump() -> Bool {
+        let devices = AudioSystem.outputDevices()
+        let isBJ: (AudioObjectID) -> Bool = { id in devices.first { $0.id == id }?.looksLikeBassJump == true }
+        let out = AudioSystem.defaultOutputDevice(), sys = AudioSystem.defaultSystemOutputDevice()
+        guard isBJ(out) || isBJ(sys) else { return false }
+        let remembered = defaults.string(forKey: "lastSpeakersUID").flatMap { uid in devices.first { $0.uid == uid } }
+        guard let target = remembered ?? devices.first(where: \.isBuiltIn)
+                ?? devices.first(where: { !$0.looksLikeBassJump && AudioSystem.isSpeakers($0.id) }) else { return false }
+        var switched = false
+        if isBJ(out) { switched = AudioSystem.setDefaultOutput(target.id) || switched }
+        if isBJ(sys) { switched = AudioSystem.setDefaultOutput(target.id, system: true) || switched }
+        guard switched else { return false }
+        log.notice("BassJump was chosen as the sound output — switched back to \(target.name, privacy: .public)")
+        if isBJ(out) {
+            notify(title: "Sound switched back to \(target.name)",
+                   body: "BassJump plays the bass automatically, so it doesn't need to be the output. You can turn this off in Settings → Speakers.")
+        }
+        return true
     }
 
     /// Restart if a device in use dies (unplugged) or changes sample rate.
@@ -487,6 +526,7 @@ final class BassJumpController: ObservableObject {
         let eqOn = eqEnabled && calibrationOverride == nil   // calibration measures with EQ off
         dsp.eq1Hz = eq1Hz; dsp.eq1DB = eqOn ? eq1DB : 0
         dsp.eq2Hz = eq2Hz; dsp.eq2DB = eqOn ? eq2DB : 0
+        dsp.setSpeakerEQ(speakerEQEnabled && calibrationOverride == nil ? speakerEQ : [])
         if let o = calibrationOverride {
             dsp.subGain = o.gain
             dsp.invertSub = o.invert
@@ -589,6 +629,10 @@ final class BassJumpController: ObservableObject {
         guard let last = lastSubPresent, last != present, notifyOnConnect else { return }
         let title = present ? "BassJump connected" : "BassJump disconnected"
         let body = present ? "Bass is playing through \(name ?? "your BassJump")." : "Plug it back in to bring the bass back."
+        notify(title: title, body: body)
+    }
+
+    private func notify(title: String, body: String) {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { granted, _ in
             guard granted else { return }
             let content = UNMutableNotificationContent()
@@ -611,6 +655,7 @@ final class BassJumpController: ObservableObject {
         defaults.set(notifyOnConnect, forKey: "notifyOnConnect")
         defaults.set(liveIcon, forKey: "liveIcon")
         defaults.set(nightMode, forKey: "nightMode")
+        defaults.set(guardOutput, forKey: "guardOutput")
     }
 }
 

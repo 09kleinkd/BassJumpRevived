@@ -13,6 +13,7 @@
 		39112CAF2A1D3E1A2453DE9D /* BassJumpApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46683642DD4E305AB332E5F5 /* BassJumpApp.swift */; };
 		3A29C307EC5EF072E25704E7 /* Presets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C44E0864B11B1A46042910E /* Presets.swift */; };
 		3A63942D7E138A34ACF47889 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A738A2F9E1F2D6D4E8F708B /* OnboardingView.swift */; };
+		42BB4EE3A8EB2DC9F8CDF75C /* SpeakerEQView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78C3FA1C738DA686880F1293 /* SpeakerEQView.swift */; };
 		54517D4F2A458542A9834C31 /* Intents.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC511956A62786747943706E /* Intents.swift */; };
 		6330C165065DE40E4D2EDEE0 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B1D3F145FFB6D05C6018AEE /* SettingsView.swift */; };
 		648241A31F6E16CB645C2DC7 /* Calibrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB91CA256AC5107556FCAF5C /* Calibrator.swift */; };
@@ -63,6 +64,7 @@
 		46683642DD4E305AB332E5F5 /* BassJumpApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BassJumpApp.swift; sourceTree = "<group>"; };
 		54E12816C322C4708D9A83A0 /* HotKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKey.swift; sourceTree = "<group>"; };
 		5565ADB1E3D63A80A1447CEB /* CoreAudioHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreAudioHelpers.swift; sourceTree = "<group>"; };
+		78C3FA1C738DA686880F1293 /* SpeakerEQView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakerEQView.swift; sourceTree = "<group>"; };
 		7B1D3F145FFB6D05C6018AEE /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		7F2590651B9DD096D290A582 /* MenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuView.swift; sourceTree = "<group>"; };
 		A0ACA1F4D58507A02AF6C268 /* BassJump.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BassJump.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -103,6 +105,7 @@
 				2A738A2F9E1F2D6D4E8F708B /* OnboardingView.swift */,
 				3C44E0864B11B1A46042910E /* Presets.swift */,
 				7B1D3F145FFB6D05C6018AEE /* SettingsView.swift */,
+				78C3FA1C738DA686880F1293 /* SpeakerEQView.swift */,
 				406A57BC69894DC5C16C009F /* Updater.swift */,
 			);
 			path = BassJumpRevived;
@@ -273,6 +276,7 @@
 				3A63942D7E138A34ACF47889 /* OnboardingView.swift in Sources */,
 				3A29C307EC5EF072E25704E7 /* Presets.swift in Sources */,
 				6330C165065DE40E4D2EDEE0 /* SettingsView.swift in Sources */,
+				42BB4EE3A8EB2DC9F8CDF75C /* SpeakerEQView.swift in Sources */,
 				ED45B17BE12EBEE6BF8C5BB1 /* Updater.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -349,7 +353,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 11;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = BWZWZZ6FB7;
 				ENABLE_HARDENED_RUNTIME = NO;
@@ -370,7 +374,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.2;
-				MARKETING_VERSION = 5.2;
+				MARKETING_VERSION = 5.3;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -418,7 +422,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 11;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = BWZWZZ6FB7;
 				ENABLE_HARDENED_RUNTIME = NO;
@@ -433,7 +437,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.2;
-				MARKETING_VERSION = 5.2;
+				MARKETING_VERSION = 5.3;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

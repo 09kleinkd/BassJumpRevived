@@ -184,6 +184,18 @@ struct MenuView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.leading, 26)
                 }
+                Button { AppDelegate.shared?.showSpeakerEQ() } label: {
+                    HStack(spacing: 8) {
+                        RowIcon(name: "chart.bar.xaxis")
+                        Text("Speaker EQ")
+                        Spacer(minLength: 8)
+                        Text(speakerEQSummary).font(.caption).foregroundStyle(.secondary)
+                        Image(systemName: "chevron.right").font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("10-band EQ for your speakers (time-aligned mode)")
                 if c.alignedMode {
                     SwitchRow(icon: "line.3.horizontal.decrease", title: "Send bass only to the sub", isOn: $c.highPassMain)
                     ValueSlider(icon: "clock.arrow.2.circlepath", title: "Alignment", value: $c.alignmentMs,
@@ -191,6 +203,12 @@ struct MenuView: View {
                 }
             }
         }
+    }
+
+    private var speakerEQSummary: String {
+        guard c.alignedMode else { return "Time-aligned only" }
+        guard c.speakerEQEnabled else { return "Off" }
+        return SpeakerEQPreset.matching(c.speakerEQ)?.name ?? "Custom"
     }
 
     // MARK: Sub EQ

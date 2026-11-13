@@ -38,7 +38,9 @@ system audio recording when asked.
 - **Sub EQ:** cut the frequency where your room booms (or boost a dip). Calibrate measures the
   room and sets the first band for you. Saved per output.
 - **Night mode:** −6 dB of bass and a −10 dBFS limiter ceiling with a slow release, so
-  explosions and drops don't shake the house. Also a Shortcuts action.
+  explosions and drops don't shake the house. Also a Shortcuts action, and it can switch on
+  and off by itself on a schedule (Settings → Speakers → Night Mode); a manual toggle in
+  between sticks until the next scheduled change.
 - **Speaker EQ:** a 10-band graphic EQ for your speakers (31 Hz – 16 kHz, ±12 dB, with
   presets), like 3.0.1's. It works in time-aligned mode, where the speakers play through the
   app; boosts automatically lower the overall level so nothing clips. Saved per output.

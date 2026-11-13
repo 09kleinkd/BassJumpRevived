@@ -45,6 +45,11 @@ final class BassJumpController: ObservableObject {
     /// Switch sound back to the speakers if someone picks "BassJump Core" as the output
     /// (3.0.1 hid the device with a kext; modern macOS won't load one).
     @Published var guardOutput: Bool { didSet { saveGlobal(); reconcile() } }
+    /// Night mode on a schedule: switches on at `nightStart` and off at `nightEnd` (minutes
+    /// after midnight). Only the switch-over moments act, so a manual toggle in between sticks.
+    @Published var nightScheduleEnabled: Bool { didSet { saveGlobal(); evaluateNightSchedule(force: true) } }
+    @Published var nightStart: Int { didSet { saveGlobal(); evaluateNightSchedule(force: true) } }
+    @Published var nightEnd: Int { didSet { saveGlobal(); evaluateNightSchedule(force: true) } }
     /// Quieter bass with peaks held well down, for late at night.
     @Published var nightMode: Bool { didSet { saveGlobal(); applyParameters(); ControlBridge.stateChanged() } }
 
@@ -119,7 +124,7 @@ final class BassJumpController: ObservableObject {
         defaults.register(defaults: [
             "enabled": true, "followSystemVolume": true, "pauseForHeadphones": true,
             "subwooferUID": "", "hotKeyEnabled": true, "skipCalls": true, "loudness": false,
-            "stereoSubs": true, "notifyOnConnect": true, "liveIcon": true, "nightMode": false, "guardOutput": true,
+            "stereoSubs": true, "notifyOnConnect": true, "liveIcon": true, "nightMode": false, "guardOutput": true, "nightScheduleEnabled": false, "nightStart": 22 * 60, "nightEnd": 7 * 60,
             "crossover": 150.0, "level": 0.6, "alignedMode": false, "highPassMain": false, "alignmentMs": 0.0,
         ])
         enabled = defaults.bool(forKey: "enabled")
@@ -135,6 +140,9 @@ final class BassJumpController: ObservableObject {
         liveIcon = defaults.bool(forKey: "liveIcon")
         nightMode = defaults.bool(forKey: "nightMode")
         guardOutput = defaults.bool(forKey: "guardOutput")
+        nightScheduleEnabled = defaults.bool(forKey: "nightScheduleEnabled")
+        nightStart = defaults.integer(forKey: "nightStart")
+        nightEnd = defaults.integer(forKey: "nightEnd")
         tapVerified = defaults.bool(forKey: "tapVerified")
         // Last-used sound settings seed any output that has no profile yet.
         crossover = defaults.double(forKey: "crossover")
@@ -171,6 +179,7 @@ final class BassJumpController: ObservableObject {
             MainActor.assumeIsolated {
                 self?.isAsleep = false
                 log.info("Woke — restarting")
+                self?.evaluateNightSchedule()
                 self?.scheduleReconcile(after: 2)
             }
         })
@@ -181,7 +190,39 @@ final class BassJumpController: ObservableObject {
         updateHotKey()
         Self.shared = self
         ControlBridge.listen { [weak self] on in self?.enabled = on }
+        evaluateNightSchedule()
         reconcile()
+    }
+
+    // MARK: Night schedule
+
+    private var lastInNightWindow: Bool?
+
+    /// True if `minutes` (after midnight) falls in [start, end), wrapping past midnight.
+    nonisolated static func inWindow(_ minutes: Int, start: Int, end: Int) -> Bool {
+        if start == end { return false }
+        return start < end ? (minutes >= start && minutes < end) : (minutes >= start || minutes < end)
+    }
+
+    private func evaluateNightSchedule(force: Bool = false, now: Date = Date()) {
+        guard nightScheduleEnabled else { lastInNightWindow = nil; return }
+        let parts = Calendar.current.dateComponents([.hour, .minute], from: now)
+        let inside = Self.inWindow((parts.hour ?? 0) * 60 + (parts.minute ?? 0), start: nightStart, end: nightEnd)
+        if force || lastInNightWindow != inside {
+            lastInNightWindow = inside
+            if nightMode != inside {
+                nightMode = inside
+                log.info("Night schedule: night mode \(inside ? "on" : "off", privacy: .public)")
+            }
+        }
+    }
+
+    var nightScheduleText: String {
+        func t(_ m: Int) -> String {
+            let d = Calendar.current.date(bySettingHour: m / 60, minute: m % 60, second: 0, of: Date()) ?? Date()
+            return d.formatted(date: .omitted, time: .shortened)
+        }
+        return "\(t(nightStart)) – \(t(nightEnd))"
     }
 
     // MARK: Keyboard shortcut
@@ -264,6 +305,7 @@ final class BassJumpController: ObservableObject {
                 if g < 0.99 { log.notice("Limiter: \(20 * log10(g), privacy: .public) dB") }
             }
         }
+        if ticks % 200 == 0 { evaluateNightSchedule() }   // every 10 s
         if ticks % 100 == 0 {
             if running && debugLogging {
                 log.notice("Last 5 s — tap in: \(self.maxInput, privacy: .public), sub out: \(self.maxPeak, privacy: .public), gain \(self.engine.dsp.subGain, privacy: .public)")
@@ -656,6 +698,9 @@ final class BassJumpController: ObservableObject {
         defaults.set(liveIcon, forKey: "liveIcon")
         defaults.set(nightMode, forKey: "nightMode")
         defaults.set(guardOutput, forKey: "guardOutput")
+        defaults.set(nightScheduleEnabled, forKey: "nightScheduleEnabled")
+        defaults.set(nightStart, forKey: "nightStart")
+        defaults.set(nightEnd, forKey: "nightEnd")
     }
 }
 

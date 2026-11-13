@@ -169,8 +169,14 @@ struct MenuView: View {
                 ValueSlider(icon: "speaker.wave.3", title: "Bass level", value: $c.level,
                             range: 0...1.5, step: 0.05) { "\(Int($0 * 100))%" }
 
-                SwitchRow(icon: "moon", title: "Night mode", isOn: $c.nightMode)
-                    .help("Quieter bass with peaks held down, so explosions and drops don't shake the house")
+                VStack(alignment: .leading, spacing: 2) {
+                    SwitchRow(icon: "moon", title: "Night mode", isOn: $c.nightMode)
+                        .help("Quieter bass with peaks held down, so explosions and drops don't shake the house")
+                    if c.nightScheduleEnabled {
+                        Text("Automatic \(c.nightScheduleText)")
+                            .font(.caption2).foregroundStyle(.secondary).padding(.leading, 26)
+                    }
+                }
                 eqSection
                 SwitchRow(icon: "ear", title: "Loudness (more bass when quiet)", isOn: $c.loudness)
                     .help("Adds up to +9 dB of bass as you turn the volume down, like the Loudness button on a stereo")

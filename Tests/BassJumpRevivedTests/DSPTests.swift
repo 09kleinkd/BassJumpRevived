@@ -297,3 +297,20 @@ final class SpeakerEQTests: XCTestCase {
         XCTAssertNil(SpeakerEQPreset.matching([1, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
     }
 }
+
+final class NightScheduleTests: XCTestCase {
+    func testWindowWrapsPastMidnight() {
+        let start = 22 * 60, end = 7 * 60
+        XCTAssertTrue(BassJumpController.inWindow(23 * 60, start: start, end: end))
+        XCTAssertTrue(BassJumpController.inWindow(2 * 60, start: start, end: end))
+        XCTAssertFalse(BassJumpController.inWindow(7 * 60, start: start, end: end))     // end is exclusive
+        XCTAssertFalse(BassJumpController.inWindow(12 * 60, start: start, end: end))
+        XCTAssertTrue(BassJumpController.inWindow(22 * 60, start: start, end: end))
+    }
+
+    func testSameDayWindowAndEmptyWindow() {
+        XCTAssertTrue(BassJumpController.inWindow(14 * 60, start: 13 * 60, end: 15 * 60))
+        XCTAssertFalse(BassJumpController.inWindow(16 * 60, start: 13 * 60, end: 15 * 60))
+        XCTAssertFalse(BassJumpController.inWindow(9 * 60, start: 9 * 60, end: 9 * 60))
+    }
+}

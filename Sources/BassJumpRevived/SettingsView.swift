@@ -24,7 +24,7 @@ enum SettingsWindow {
             tabs.addTabViewItem(item)
         }
         add(GeneralSettings(), "General", "gearshape", height: 470)
-        add(SoundSettings(), "Speakers", "hifispeaker.2", height: 405)
+        add(SoundSettings(), "Speakers", "hifispeaker.2", height: 650)
         add(AppsSettings(), "Apps", "app.badge", height: 290)
         add(HelpSettings(), "Help", "questionmark.circle", height: 400)
 
@@ -182,8 +182,31 @@ private struct SoundSettings: View {
                     Text("If it's picked in Sound settings, switch back to your speakers. BassJump plays the bass automatically.")
                 }
             } header: { Text("Playback") }
+            Section {
+                Toggle(isOn: $c.nightScheduleEnabled) {
+                    Text("Turn night mode on automatically")
+                    Text("Quieter bass with peaks held down. You can still switch it by hand in between.")
+                }
+                if c.nightScheduleEnabled {
+                    DatePicker("From", selection: timeBinding(\.nightStart), displayedComponents: .hourAndMinute)
+                    DatePicker("Until", selection: timeBinding(\.nightEnd), displayedComponents: .hourAndMinute)
+                }
+            } header: { Text("Night Mode") }
         }
         .formStyle(.grouped)
+    }
+}
+
+extension SoundSettings {
+    /// Minutes-after-midnight ⇄ Date for the time pickers.
+    func timeBinding(_ key: ReferenceWritableKeyPath<BassJumpController, Int>) -> Binding<Date> {
+        Binding(get: {
+            let m = c[keyPath: key]
+            return Calendar.current.date(bySettingHour: m / 60, minute: m % 60, second: 0, of: Date()) ?? Date()
+        }, set: { d in
+            let p = Calendar.current.dateComponents([.hour, .minute], from: d)
+            c[keyPath: key] = (p.hour ?? 0) * 60 + (p.minute ?? 0)
+        })
     }
 }
 

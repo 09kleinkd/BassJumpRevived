@@ -43,6 +43,16 @@ xcrun stapler staple "$APP"
 rm -f "$ZIP" && ditto -c -k --keepParent "$APP" "$ZIP"
 spctl --assess --type execute -vv "$APP"
 
+# Disk image for people downloading by hand (drag BassJump onto Applications).
+DMG="build/BassJump-$VERSION.dmg"
+scripts/make-dmg.sh "$APP" "$DMG" "$IDENTITY" "$PROFILE"
+
+# Stable names, attached to every release so these links always fetch the newest version:
+#   https://github.com/09kleinkd/BassJumpRevived/releases/latest/download/BassJump.dmg
+#   https://github.com/09kleinkd/BassJumpRevived/releases/latest/download/BassJump.zip
+cp "$DMG" build/BassJump.dmg
+cp "$ZIP" build/BassJump.zip
+
 # Sparkle update feed: sign the zip with the EdDSA key in the login keychain and add it
 # to appcast.xml. Commit appcast.xml after uploading the zip to the GitHub release.
 SPARKLE_BIN=build/DD-release/SourcePackages/artifacts/sparkle/Sparkle/bin
@@ -50,4 +60,4 @@ SIG=$("$SPARKLE_BIN/sign_update" --account BassJumpRevived -p "$ZIP")
 BUILD=$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$APP/Contents/Info.plist")
 MINOS=$(/usr/libexec/PlistBuddy -c 'Print LSMinimumSystemVersion' "$APP/Contents/Info.plist")
 scripts/appcast.py "$VERSION" "$BUILD" "$ZIP" "$SIG" "$MINOS"
-echo "Ready to publish: $ZIP (tag v$VERSION), then commit appcast.xml"
+echo "Ready to publish (tag v$VERSION): $ZIP $DMG build/BassJump.zip build/BassJump.dmg — then commit appcast.xml"

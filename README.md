@@ -6,7 +6,8 @@ A native replacement for Twelve South's BassJump Sound System software
 (last release 3.0.1, 2015, Intel-only). No driver, no kernel extension.
 
 ## For other BassJump owners
-**[⬇︎ Download the latest release](https://github.com/09kleinkd/BassJumpRevived/releases/latest)**
+**[⬇︎ Download BassJump Revived](https://github.com/09kleinkd/BassJumpRevived/releases/latest/download/BassJump.dmg)**
+· [website](https://09kleinkd.github.io/BassJumpRevived/) · [all releases](https://github.com/09kleinkd/BassJumpRevived/releases)
 (notarized by Apple; macOS 14.2+, Apple Silicon and Intel).
 
 Or with [Homebrew](https://brew.sh):
@@ -19,7 +20,7 @@ once a day — you can turn those off in Options).
 If your BassJump stopped working after macOS Catalina or on an Apple Silicon Mac, this app
 replaces Twelve South's discontinued software. You don't need to install the old software,
 its driver or its kernel extension; if they're still installed, run Twelve South's uninstaller
-first. Download the latest release, move **BassJump.app** to Applications, open it, and allow
+first. Open **BassJump.dmg**, drag **BassJump** onto Applications, open it, and allow
 system audio recording when asked.
 
 > BassJump Revived is an independent project. It is not affiliated with, endorsed by, or
@@ -120,7 +121,9 @@ the login keychain (account `BassJumpRevived`; public key in `Info.plist` → `S
 adds the release to `appcast.xml`. To publish:
 1. Bump `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` in `project.yml` and `Info.plist`.
 2. `scripts/release.sh`
-3. Create GitHub release `v<version>` with `build/BassJump-<version>.zip` attached.
+3. Create GitHub release `v<version>` with `build/BassJump-<version>.zip`, `build/BassJump-<version>.dmg`,
+   and the stable-named `build/BassJump.zip` + `build/BassJump.dmg` attached (the stable names
+   keep `releases/latest/download/BassJump.dmg` pointing at the newest version).
 4. Commit and push `appcast.xml` — installed copies pick the update up from there.
 5. Update the version and `sha256` in the Homebrew tap's `Casks/bassjump-revived.rb`.
 
